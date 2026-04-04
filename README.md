@@ -1,6 +1,6 @@
-# OpenClaw-RL-Plus
+# OpenClaw-RL-Offline
 
-OpenClaw-RL-Plus is a curated fork of OpenClaw-RL focused on benchmark-aware offline and off-policy reinforcement learning.
+OpenClaw-RL-Offline is a curated fork of OpenClaw-RL focused on benchmark-aware offline and off-policy reinforcement learning.
 
 It keeps the original online training method folders needed for reproducibility, and adds a cleaner offline stack for:
 
@@ -153,4 +153,4 @@ The mock adapters are designed for CPU validation and repo-level testing. Real b
 
 ## Acknowledgement
 
-OpenClaw-RL-Plus is built on top of the original OpenClaw-RL project from Gen-Verse. This fork focuses on making offline RL and benchmark replay a first-class, easier-to-publish part of the repository without rewriting the upstream method organization.
+OpenClaw-RL-Offline is built on top of the original OpenClaw-RL project from Gen-Verse. This fork focuses on making offline RL and benchmark replay a first-class, easier-to-publish part of the repository without rewriting the upstream method organization.
