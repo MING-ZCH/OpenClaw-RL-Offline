@@ -1,5 +1,5 @@
 {
-  "description": "WebArena task configurations for OpenClaw-RL-Plus offline replay",
+  "description": "WebArena task configurations for OpenClaw-RL-Offline offline replay",
   "benchmark": "webarena",
   "reference": "https://arxiv.org/abs/2307.13854",
   "tasks": [

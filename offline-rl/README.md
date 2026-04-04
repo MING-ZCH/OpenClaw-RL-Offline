@@ -1,6 +1,6 @@
 # offline-rl
 
-`offline-rl` is the offline reinforcement learning package inside OpenClaw-RL-Plus.
+`offline-rl` is the offline reinforcement learning package inside OpenClaw-RL-Offline.
 
 It provides the reusable data and algorithm layer for collecting benchmark trajectories, replaying them offline, and training lightweight offline RL baselines before moving into full slime-based fine-tuning.
 

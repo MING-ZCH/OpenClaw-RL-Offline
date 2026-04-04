@@ -1,5 +1,5 @@
 {
-  "description": "AlfWorld task configurations for OpenClaw-RL-Plus offline replay",
+  "description": "AlfWorld task configurations for OpenClaw-RL-Offline offline replay",
   "benchmark": "alfworld",
   "reference": "https://arxiv.org/abs/2010.03768",
   "tasks": [

@@ -1,5 +1,5 @@
 {
-  "description": "AndroidWorld task configurations for OpenClaw-RL-Plus offline replay",
+  "description": "AndroidWorld task configurations for OpenClaw-RL-Offline offline replay",
   "benchmark": "androidworld",
   "reference": "https://arxiv.org/abs/2405.14536",
   "tasks": [
