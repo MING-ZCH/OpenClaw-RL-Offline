@@ -1,0 +1,43 @@
+{
+  "description": "AndroidWorld task configurations for OpenClaw-RL-Plus offline replay",
+  "benchmark": "androidworld",
+  "reference": "https://arxiv.org/abs/2405.14536",
+  "tasks": [
+    {
+      "task_id": "aw_settings_001",
+      "task_name": "settings_toggle_wifi",
+      "domain": "settings",
+      "task_description": "Open Settings and enable WiFi.",
+      "difficulty": "easy",
+      "max_steps": 6,
+      "tags": ["settings", "wifi", "toggle"]
+    },
+    {
+      "task_id": "aw_calendar_001",
+      "task_name": "calendar_create_event",
+      "domain": "calendar",
+      "task_description": "Create a calendar event named 'Team Standup' for tomorrow at 10 AM.",
+      "difficulty": "medium",
+      "max_steps": 15,
+      "tags": ["calendar", "event", "productivity"]
+    },
+    {
+      "task_id": "aw_browser_001",
+      "task_name": "browser_open_wikipedia",
+      "domain": "browser",
+      "task_description": "Open Chrome and navigate to wikipedia.org.",
+      "difficulty": "easy",
+      "max_steps": 8,
+      "tags": ["browser", "navigation"]
+    },
+    {
+      "task_id": "aw_maps_001",
+      "task_name": "maps_search_coffee",
+      "domain": "maps",
+      "task_description": "Search for coffee shops near the current location in Maps.",
+      "difficulty": "medium",
+      "max_steps": 8,
+      "tags": ["maps", "search"]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "description": "AlfWorld task configurations for OpenClaw-RL-Plus offline replay",
+  "benchmark": "alfworld",
+  "reference": "https://arxiv.org/abs/2010.03768",
+  "tasks": [
+    {
+      "task_id": "alf_kitchen_001",
+      "task_name": "pick_heat_place",
+      "domain": "kitchen",
+      "task_description": "Find the apple, heat it, and place it on the dining table.",
+      "difficulty": "medium",
+      "max_steps": 12,
+      "tags": ["kitchen", "heating", "placement"]
+    },
+    {
+      "task_id": "alf_kitchen_002",
+      "task_name": "pick_clean_place",
+      "domain": "kitchen",
+      "task_description": "Pick up the mug, clean it in the sink, and place it in the cabinet.",
+      "difficulty": "medium",
+      "max_steps": 12,
+      "tags": ["kitchen", "cleaning", "storage"]
+    },
+    {
+      "task_id": "alf_kitchen_003",
+      "task_name": "pick_cool_place",
+      "domain": "kitchen",
+      "task_description": "Find the soda can, cool it in the fridge, and put it on the counter.",
+      "difficulty": "medium",
+      "max_steps": 12,
+      "tags": ["kitchen", "cooling", "placement"]
+    },
+    {
+      "task_id": "alf_bedroom_001",
+      "task_name": "pick_place_book",
+      "domain": "bedroom",
+      "task_description": "Locate the book and place it on the desk.",
+      "difficulty": "easy",
+      "max_steps": 10,
+      "tags": ["bedroom", "navigation", "placement"]
+    }
+  ]
+}

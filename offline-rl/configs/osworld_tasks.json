@@ -1,0 +1,172 @@
+{
+  "description": "OSWorld task configurations for offline-rl training and evaluation",
+  "benchmark": "osworld",
+  "reference": "https://arxiv.org/abs/2404.07972",
+  "tasks": [
+    {
+      "task_id": "os_chrome_001",
+      "task_name": "chrome_search",
+      "domain": "chrome",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open Chrome and search for 'OpenClaw-RL' on Google",
+      "difficulty": "easy",
+      "expected_apps": ["chrome"],
+      "max_steps": 15,
+      "tags": ["web", "browser", "search"]
+    },
+    {
+      "task_id": "os_chrome_002",
+      "task_name": "chrome_github_star",
+      "domain": "chrome",
+      "snapshot_name": "ubuntu",
+      "task_description": "Navigate to github.com and star the OpenClaw-RL repository",
+      "difficulty": "medium",
+      "expected_apps": ["chrome"],
+      "max_steps": 20,
+      "tags": ["web", "browser", "navigation"]
+    },
+    {
+      "task_id": "os_chrome_003",
+      "task_name": "chrome_download_pdf",
+      "domain": "chrome",
+      "snapshot_name": "ubuntu",
+      "task_description": "Download a PDF from arxiv.org about reinforcement learning",
+      "difficulty": "medium",
+      "expected_apps": ["chrome"],
+      "max_steps": 20,
+      "tags": ["web", "browser", "download"]
+    },
+    {
+      "task_id": "os_libreoffice_001",
+      "task_name": "libreoffice_new_doc",
+      "domain": "libreoffice",
+      "snapshot_name": "ubuntu",
+      "task_description": "Create a new document and type 'Hello World' as the title",
+      "difficulty": "easy",
+      "expected_apps": ["libreoffice"],
+      "max_steps": 10,
+      "tags": ["office", "document", "write"]
+    },
+    {
+      "task_id": "os_libreoffice_002",
+      "task_name": "libreoffice_spreadsheet_sum",
+      "domain": "libreoffice",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open an existing spreadsheet and sum column A values",
+      "difficulty": "medium",
+      "expected_apps": ["libreoffice"],
+      "max_steps": 15,
+      "tags": ["office", "spreadsheet", "formula"]
+    },
+    {
+      "task_id": "os_files_001",
+      "task_name": "file_copy",
+      "domain": "files",
+      "snapshot_name": "ubuntu",
+      "task_description": "Copy file 'test.txt' from Desktop to Documents folder",
+      "difficulty": "easy",
+      "expected_apps": ["nautilus"],
+      "max_steps": 15,
+      "tags": ["file_operation", "copy"]
+    },
+    {
+      "task_id": "os_files_002",
+      "task_name": "file_new_folder",
+      "domain": "files",
+      "snapshot_name": "ubuntu",
+      "task_description": "Create a new folder named 'Project' on the Desktop",
+      "difficulty": "easy",
+      "expected_apps": ["nautilus"],
+      "max_steps": 10,
+      "tags": ["file_operation", "create"]
+    },
+    {
+      "task_id": "os_gimp_001",
+      "task_name": "gimp_resize",
+      "domain": "gimp",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open GIMP and resize an image to 512x512 pixels",
+      "difficulty": "medium",
+      "expected_apps": ["gimp"],
+      "max_steps": 20,
+      "tags": ["image", "edit", "resize"]
+    },
+    {
+      "task_id": "os_terminal_001",
+      "task_name": "terminal_ls",
+      "domain": "terminal",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open a terminal and list files in the home directory",
+      "difficulty": "easy",
+      "expected_apps": ["gnome-terminal"],
+      "max_steps": 8,
+      "tags": ["terminal", "command"]
+    },
+    {
+      "task_id": "os_terminal_002",
+      "task_name": "terminal_venv",
+      "domain": "terminal",
+      "snapshot_name": "ubuntu",
+      "task_description": "Create a Python virtual environment named 'myenv'",
+      "difficulty": "medium",
+      "expected_apps": ["gnome-terminal"],
+      "max_steps": 10,
+      "tags": ["terminal", "python"]
+    },
+    {
+      "task_id": "os_vscode_001",
+      "task_name": "vscode_new_file",
+      "domain": "vscode",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open VS Code and create a new Python file",
+      "difficulty": "easy",
+      "expected_apps": ["code"],
+      "max_steps": 12,
+      "tags": ["editor", "vscode"]
+    },
+    {
+      "task_id": "os_settings_001",
+      "task_name": "settings_wallpaper",
+      "domain": "settings",
+      "snapshot_name": "ubuntu",
+      "task_description": "Change the desktop wallpaper in system settings",
+      "difficulty": "easy",
+      "expected_apps": ["gnome-control-center"],
+      "max_steps": 15,
+      "tags": ["settings", "display"]
+    },
+    {
+      "task_id": "os_settings_002",
+      "task_name": "settings_wifi",
+      "domain": "settings",
+      "snapshot_name": "ubuntu",
+      "task_description": "Connect to a WiFi network from the system tray",
+      "difficulty": "easy",
+      "expected_apps": ["gnome-control-center"],
+      "max_steps": 10,
+      "tags": ["settings", "network"]
+    },
+    {
+      "task_id": "os_vlc_001",
+      "task_name": "vlc_play",
+      "domain": "vlc",
+      "snapshot_name": "ubuntu",
+      "task_description": "Open VLC and play a sample video file",
+      "difficulty": "easy",
+      "expected_apps": ["vlc"],
+      "max_steps": 8,
+      "tags": ["media", "video"]
+    },
+    {
+      "task_id": "os_composite_001",
+      "task_name": "composite_download_edit",
+      "domain": "composite",
+      "snapshot_name": "ubuntu",
+      "task_description": "Download an image from Chrome, then open it in GIMP and crop it",
+      "difficulty": "hard",
+      "expected_apps": ["chrome", "gimp"],
+      "max_steps": 30,
+      "tags": ["multi_app", "composite"]
+    }
+  ]
+}

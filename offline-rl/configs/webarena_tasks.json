@@ -1,0 +1,43 @@
+{
+  "description": "WebArena task configurations for OpenClaw-RL-Plus offline replay",
+  "benchmark": "webarena",
+  "reference": "https://arxiv.org/abs/2307.13854",
+  "tasks": [
+    {
+      "task_id": "wa_shop_001",
+      "task_name": "shopping_add_to_cart",
+      "domain": "shopping",
+      "task_description": "Find the cheapest laptop on the shopping site and add it to the cart.",
+      "difficulty": "medium",
+      "max_steps": 15,
+      "tags": ["shopping", "search", "cart"]
+    },
+    {
+      "task_id": "wa_cms_001",
+      "task_name": "cms_create_post",
+      "domain": "cms",
+      "task_description": "Create a new blog post titled 'AI in 2025'.",
+      "difficulty": "medium",
+      "max_steps": 12,
+      "tags": ["cms", "authoring"]
+    },
+    {
+      "task_id": "wa_reddit_001",
+      "task_name": "reddit_post_question",
+      "domain": "reddit",
+      "task_description": "Post a question titled 'How to learn Python?' in the programming subreddit.",
+      "difficulty": "medium",
+      "max_steps": 12,
+      "tags": ["reddit", "post"]
+    },
+    {
+      "task_id": "wa_gitlab_002",
+      "task_name": "gitlab_create_issue",
+      "domain": "gitlab",
+      "task_description": "Create a new issue titled 'Fix bug in login' in the main project.",
+      "difficulty": "medium",
+      "max_steps": 10,
+      "tags": ["gitlab", "issue"]
+    }
+  ]
+}
