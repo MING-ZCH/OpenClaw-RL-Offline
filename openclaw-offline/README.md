@@ -35,6 +35,8 @@ python compute_weights.py \
   --beta 3.0
 ```
 
+If `OFFLINE_WEIGHT_PATH` is not provided at launch time, `offline_loss.py` falls back to reward/outcome-based proxy weights. That path is useful for smoke tests, but critic-derived weights are the recommended route when you want a closer offline-RL signal.
+
 ### 3. Launch offline fine-tuning
 
 ```bash
@@ -98,4 +100,5 @@ If you only need replay data structures, collectors, adapters, or lightweight of
 - This module assumes the original slime runtime stack is available.
 - Full training still expects a Linux-like multi-GPU environment, even when launched from PowerShell.
 - Offline replay does not add exploration; it only reuses pre-collected trajectories.
+- When no explicit weight file is provided, the loss falls back to reward-based proxy weighting rather than learned advantages.
 - Real benchmark quality still depends on the underlying external benchmark environments and how the data was collected.

@@ -19,6 +19,18 @@ from .trajectory_store import Step, Trajectory, TrajectoryStore
 logger = logging.getLogger(__name__)
 
 
+_SCALAR_BEHAVIOR_LOG_PROB_KEYS = (
+    "behavior_log_prob",
+    "old_log_prob",
+    "log_prob",
+)
+_SEQUENCE_BEHAVIOR_LOG_PROB_KEYS = (
+    "rollout_log_probs",
+    "response_logprobs",
+    "log_probs",
+)
+
+
 @dataclass
 class Transition:
     """A single (s, a, r, s', done) transition."""
@@ -31,6 +43,7 @@ class Transition:
     next_observation_context: str
     done: bool
     outcome_reward: float  # Episode-level outcome
+    behavior_log_prob: Optional[float] = None
     metadata: dict = field(default_factory=dict)
 
 
@@ -44,10 +57,107 @@ class TransitionBatch:
     next_observation_contexts: list[str]
     dones: np.ndarray
     outcome_rewards: np.ndarray
+    behavior_log_probs: np.ndarray
 
     @property
     def batch_size(self) -> int:
         return len(self.instructions)
+
+
+def _coerce_behavior_log_prob(value) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sum_behavior_log_prob_sequence(values) -> Optional[float]:
+    if not isinstance(values, (list, tuple)) or not values:
+        return None
+
+    total = 0.0
+    for item in values:
+        scalar = _coerce_behavior_log_prob(item)
+        if scalar is None:
+            return None
+        total += scalar
+    return total
+
+
+def _extract_behavior_log_prob_from_mapping(mapping: dict) -> Optional[float]:
+    if not isinstance(mapping, dict):
+        return None
+
+    for key in _SCALAR_BEHAVIOR_LOG_PROB_KEYS:
+        if key in mapping:
+            scalar = _coerce_behavior_log_prob(mapping.get(key))
+            if scalar is not None:
+                return scalar
+
+    for key in _SEQUENCE_BEHAVIOR_LOG_PROB_KEYS:
+        if key in mapping:
+            total = _sum_behavior_log_prob_sequence(mapping.get(key))
+            if total is not None:
+                return total
+
+    return None
+
+
+def _extract_behavior_log_prob_from_trajectory_metadata(
+    traj: Trajectory,
+    step: Step,
+) -> Optional[float]:
+    metadata = traj.metadata if isinstance(traj.metadata, dict) else {}
+    if not metadata:
+        return None
+
+    for key in ("behavior_log_probs", "old_log_probs", "rollout_log_probs"):
+        raw_values = metadata.get(key)
+        if isinstance(raw_values, dict):
+            raw = raw_values.get(step.step_idx)
+            if raw is None:
+                raw = raw_values.get(str(step.step_idx))
+        elif isinstance(raw_values, (list, tuple)) and step.step_idx < len(raw_values):
+            raw = raw_values[step.step_idx]
+        else:
+            raw = None
+
+        if isinstance(raw, (list, tuple)):
+            total = _sum_behavior_log_prob_sequence(raw)
+            if total is not None:
+                return total
+
+        scalar = _coerce_behavior_log_prob(raw)
+        if scalar is not None:
+            return scalar
+
+    return None
+
+
+def _extract_behavior_log_prob(step: Step, traj: Trajectory) -> Optional[float]:
+    step_value = _extract_behavior_log_prob_from_mapping(step.info)
+    if step_value is not None:
+        return step_value
+    return _extract_behavior_log_prob_from_trajectory_metadata(traj, step)
+
+
+def _build_transition_batch(selected: list[Transition]) -> TransitionBatch:
+    return TransitionBatch(
+        instructions=[t.instruction for t in selected],
+        observation_contexts=[t.observation_context for t in selected],
+        actions=[t.action for t in selected],
+        rewards=np.array([t.reward for t in selected], dtype=np.float32),
+        next_observation_contexts=[t.next_observation_context for t in selected],
+        dones=np.array([t.done for t in selected], dtype=np.float32),
+        outcome_rewards=np.array([t.outcome_reward for t in selected], dtype=np.float32),
+        behavior_log_probs=np.array(
+            [
+                t.behavior_log_prob if t.behavior_log_prob is not None else np.nan
+                for t in selected
+            ],
+            dtype=np.float32,
+        ),
+    )
 
 
 def _trajectory_to_transitions(traj: Trajectory) -> list[Transition]:
@@ -64,6 +174,7 @@ def _trajectory_to_transitions(traj: Trajectory) -> list[Transition]:
         is_last = (i == len(traj.steps) - 1)
         # For intermediate steps, reward is 0 unless process reward is available
         step_reward = step.reward if step.reward != 0.0 else (traj.outcome_reward if is_last else 0.0)
+        step_metadata = dict(step.info) if isinstance(step.info, dict) else {}
 
         transitions.append(Transition(
             trajectory_id=traj.trajectory_id,
@@ -75,6 +186,8 @@ def _trajectory_to_transitions(traj: Trajectory) -> list[Transition]:
             next_observation_context=next_obs_context,
             done=is_last or step.done,
             outcome_reward=traj.outcome_reward,
+            behavior_log_prob=_extract_behavior_log_prob(step, traj),
+            metadata=step_metadata,
         ))
     return transitions
 
@@ -168,16 +281,7 @@ class ReplayBuffer:
         batch_size = min(batch_size, len(self._transitions))
         indices = self.np_rng.choice(len(self._transitions), batch_size, replace=False)
         selected = [self._transitions[i] for i in indices]
-
-        return TransitionBatch(
-            instructions=[t.instruction for t in selected],
-            observation_contexts=[t.observation_context for t in selected],
-            actions=[t.action for t in selected],
-            rewards=np.array([t.reward for t in selected], dtype=np.float32),
-            next_observation_contexts=[t.next_observation_context for t in selected],
-            dones=np.array([t.done for t in selected], dtype=np.float32),
-            outcome_rewards=np.array([t.outcome_reward for t in selected], dtype=np.float32),
-        )
+        return _build_transition_batch(selected)
 
     def sample_transitions_prioritized(
         self, batch_size: int, alpha: float = 0.6
@@ -207,15 +311,7 @@ class ReplayBuffer:
         weights = (n * probs[indices]) ** (-1.0)
         weights /= weights.max()
 
-        batch = TransitionBatch(
-            instructions=[t.instruction for t in selected],
-            observation_contexts=[t.observation_context for t in selected],
-            actions=[t.action for t in selected],
-            rewards=np.array([t.reward for t in selected], dtype=np.float32),
-            next_observation_contexts=[t.next_observation_context for t in selected],
-            dones=np.array([t.done for t in selected], dtype=np.float32),
-            outcome_rewards=np.array([t.outcome_reward for t in selected], dtype=np.float32),
-        )
+        batch = _build_transition_batch(selected)
 
         return batch, weights.astype(np.float32), indices
 

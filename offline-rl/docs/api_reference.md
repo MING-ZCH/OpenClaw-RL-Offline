@@ -54,7 +54,7 @@ class Step:
     reward: float = 0.0                   # Step-level reward (0 if unavailable)
     done: bool = False                    # Whether episode ended
     observation_file: Optional[str] = None  # Path to screenshot file
-    info: dict = {}                       # Additional metadata
+    info: dict = {}                       # Additional metadata, optionally including behavior-policy log-probs
 ```
 
 ### Trajectory
@@ -72,7 +72,7 @@ class Trajectory:
     num_steps: int          # Number of steps
     status: str = "completed"  # "completed" | "failed" | "truncated" | "aborted"
     source: str = "manual"    # "gui-rl" | "manual" | "mock"
-    metadata: dict = {}
+    metadata: dict = {}        # Optional trajectory-level metadata, including per-step behavior log-probs
 
     @property
     success -> bool             # True if eval_score > 0.5
@@ -119,6 +119,7 @@ class Transition:
     next_observation_context: str
     done: bool
     outcome_reward: float
+    behavior_log_prob: Optional[float] = None  # Sequence-level behavior policy log-prob if present
     metadata: dict = {}
 ```
 
@@ -134,6 +135,7 @@ class TransitionBatch:
     next_observation_contexts: list[str]  # NOTE: not "next_states"
     dones: np.ndarray                    # shape: (batch_size,)
     outcome_rewards: np.ndarray          # shape: (batch_size,)
+    behavior_log_probs: np.ndarray       # shape: (batch_size,), NaN when unavailable
 
     @property
     batch_size -> int

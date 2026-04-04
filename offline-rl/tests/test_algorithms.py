@@ -263,6 +263,8 @@ class TestOffPolicyGRPO:
         assert "kl_penalty" in metrics.extra
         assert "mean_advantage" in metrics.extra
         assert "mean_ratio" in metrics.extra
+        assert "behavior_log_prob_coverage" in metrics.extra
+        assert "behavior_fallback_fraction" in metrics.extra
 
     def test_multi_step_training(self, tmp_dir):
         buf = _create_buffer_with_data(tmp_dir)
@@ -314,6 +316,21 @@ class TestOffPolicyGRPO:
         # Both should produce valid metrics
         assert isinstance(m_small, TrainMetrics)
         assert isinstance(m_large, TrainMetrics)
+
+    def test_prefers_behavior_log_probs_when_available(self, tmp_dir):
+        buf = _create_buffer_with_data(tmp_dir)
+        for transition in buf._transitions:
+            transition.behavior_log_prob = -0.5
+
+        grpo = OffPolicyGRPO(
+            replay_buffer=buf, state_dim=64, action_dim=64, hidden_dim=64,
+            n_policy_updates=2, device="cpu",
+        )
+        batch = buf.sample_transitions(8)
+        metrics = grpo.train_step(batch)
+
+        assert metrics.extra["behavior_log_prob_coverage"] == 1.0
+        assert metrics.extra["behavior_fallback_fraction"] == 0.0
 
     def test_save_load(self, tmp_dir):
         buf = _create_buffer_with_data(tmp_dir)

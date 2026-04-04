@@ -18,6 +18,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from offline_rl.data.replay_buffer import ReplayBuffer, TransitionBatch
 from .base import BaseOfflineAlgorithm, StateEncoder, ActionEncoder, TrainMetrics
@@ -140,6 +141,27 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
         std_r = rewards.std() + 1e-8
         return (rewards - mean_r) / std_r
 
+    def _get_behavior_log_probs(
+        self,
+        batch: TransitionBatch,
+        log_probs_ref: torch.Tensor,
+    ) -> tuple[torch.Tensor, float]:
+        behavior_log_probs = torch.as_tensor(
+            batch.behavior_log_probs,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        valid_mask = torch.isfinite(behavior_log_probs)
+        coverage = valid_mask.float().mean().item()
+
+        if coverage <= 0.0:
+            return log_probs_ref.detach(), 0.0
+        if coverage >= 1.0:
+            return behavior_log_probs, 1.0
+
+        fallback = torch.where(valid_mask, behavior_log_probs, log_probs_ref.detach())
+        return fallback, coverage
+
     def train_step(self, batch: TransitionBatch) -> TrainMetrics:
         """
         Perform one round of off-policy GRPO updates.
@@ -151,6 +173,8 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
 
         total_surr_loss = 0.0
         total_kl_loss = 0.0
+        total_ratio = 0.0
+        total_behavior_coverage = 0.0
 
         for _ in range(self.n_policy_updates):
             s, a = self._encode_batch(batch)
@@ -162,9 +186,10 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
             with torch.no_grad():
                 log_probs_ref = self.ref_policy(s, a)
 
-            # Importance sampling ratio (approximate: use current vs ref as proxy)
-            # In production, old policy log-probs from the replay buffer would be used
-            ratio = torch.exp(log_probs_current - log_probs_ref.detach())
+            # Prefer replayed behavior-policy log-probs when available.
+            # Fall back to reference-policy log-probs for legacy datasets.
+            behavior_log_probs, coverage = self._get_behavior_log_probs(batch, log_probs_ref)
+            ratio = torch.exp(log_probs_current - behavior_log_probs.detach())
 
             # Clipped surrogate objective
             surr1 = ratio * advantages
@@ -179,14 +204,23 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
 
             self.optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.policy.parameters(), 1.0)
+            clip_grad_norm_(
+                list(self.state_encoder.parameters())
+                + list(self.action_encoder.parameters())
+                + list(self.policy.parameters()),
+                self.max_grad_norm or 1.0,
+            )
             self.optimizer.step()
 
             total_surr_loss += surr_loss.item()
             total_kl_loss += kl_penalty.item()
+            total_ratio += ratio.mean().item()
+            total_behavior_coverage += coverage
 
         avg_surr = total_surr_loss / self.n_policy_updates
         avg_kl = total_kl_loss / self.n_policy_updates
+        avg_ratio = total_ratio / self.n_policy_updates
+        avg_behavior_coverage = total_behavior_coverage / self.n_policy_updates
 
         return TrainMetrics(
             loss=avg_surr + self.kl_coeff * avg_kl,
@@ -194,7 +228,9 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
                 "surrogate_loss": avg_surr,
                 "kl_penalty": avg_kl,
                 "mean_advantage": advantages.mean().item(),
-                "mean_ratio": ratio.mean().item(),
+                "mean_ratio": avg_ratio,
+                "behavior_log_prob_coverage": avg_behavior_coverage,
+                "behavior_fallback_fraction": 1.0 - avg_behavior_coverage,
             },
         )
 

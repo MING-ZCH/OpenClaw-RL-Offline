@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from offline_rl.data.replay_buffer import ReplayBuffer, Transition, TransitionBatch, _trajectory_to_transitions
+from offline_rl.data.trajectory_store import TrajectoryStore
 from tests.conftest import _make_trajectory
 
 
@@ -36,6 +37,29 @@ class TestTransitionConversion:
         for tr in transitions[:-1]:
             assert tr.reward == 0.0
 
+    def test_extracts_behavior_log_probs_from_step_metadata(self):
+        traj = _make_trajectory("t1", n_steps=3, success=True)
+        traj.steps[0].info["behavior_log_prob"] = -0.75
+        traj.steps[1].info["rollout_log_probs"] = [-0.2, -0.3]
+
+        transitions = _trajectory_to_transitions(traj)
+
+        assert transitions[0].behavior_log_prob is not None
+        assert transitions[1].behavior_log_prob is not None
+        assert np.isclose(transitions[0].behavior_log_prob, -0.75)
+        assert np.isclose(transitions[1].behavior_log_prob, -0.5)
+        assert transitions[2].behavior_log_prob is None
+
+    def test_extracts_behavior_log_probs_from_trajectory_metadata(self):
+        traj = _make_trajectory("t1", n_steps=3, success=True)
+        traj.metadata["behavior_log_probs"] = {"1": -1.25}
+
+        transitions = _trajectory_to_transitions(traj)
+
+        assert transitions[0].behavior_log_prob is None
+        assert transitions[1].behavior_log_prob is not None
+        assert np.isclose(transitions[1].behavior_log_prob, -1.25)
+
 
 class TestReplayBuffer:
     """Test ReplayBuffer sampling functionality."""
@@ -62,6 +86,23 @@ class TestReplayBuffer:
         assert len(batch.instructions) == 8
         assert batch.rewards.shape == (8,)
         assert batch.dones.shape == (8,)
+        assert batch.behavior_log_probs.shape == (8,)
+
+    def test_sample_transitions_preserves_behavior_log_probs(self, tmp_dir):
+        path = f"{tmp_dir}/behavior_store.jsonl"
+        store = TrajectoryStore(path)
+        traj = _make_trajectory("behavior_traj", n_steps=3, success=True)
+        traj.steps[0].info["behavior_log_prob"] = -0.3
+        traj.steps[1].info["old_log_prob"] = -0.6
+        store.append(traj)
+
+        buf = ReplayBuffer(store=store)
+        buf.load_from_store()
+        batch = buf.sample_transitions(3)
+
+        finite = batch.behavior_log_probs[np.isfinite(batch.behavior_log_probs)]
+        assert finite.shape == (2,)
+        assert np.isclose(finite.sum(), -0.9)
 
     def test_prioritized_sampling(self, populated_store):
         buf = ReplayBuffer(store=populated_store)

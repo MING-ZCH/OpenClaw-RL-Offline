@@ -1,12 +1,20 @@
 # OpenClaw-RL-Offline
 
-OpenClaw-RL-Offline is a curated fork of OpenClaw-RL focused on benchmark-aware offline and off-policy reinforcement learning.
+OpenClaw-RL-Offline is a benchmark-aware offline fork of OpenClaw-RL.
 
-It keeps the original online training method folders needed for reproducibility, and adds a cleaner offline stack for:
+It keeps the original online method folders for reproducibility, and adds a clearer offline stack for three concrete jobs:
 
-- benchmark trajectory collection;
-- offline policy learning on replayed data;
-- slime-compatible offline fine-tuning with pre-collected trajectories.
+- collecting benchmark trajectories into replayable JSONL stores;
+- training lightweight offline RL baselines on those trajectories;
+- replaying the same data back into the original slime-based LLM training path.
+
+Documentation:
+
+- English overview: this file
+- Chinese overview: [README.zh-CN.md](./README.zh-CN.md)
+- Offline implementation status: [offline-rl/docs/implementation_status.md](./offline-rl/docs/implementation_status.md)
+- Offline package details: [offline-rl/README.md](./offline-rl/README.md)
+- slime bridge details: [openclaw-offline/README.md](./openclaw-offline/README.md)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.7%2B-blue.svg)](https://www.python.org/)
@@ -20,6 +28,19 @@ It keeps the original online training method folders needed for reproducibility,
 - Benchmark-specific offline launcher wrappers for OSWorld, AndroidWorld, WebArena, and AlfWorld.
 - Windows-friendly PowerShell wrappers for benchmark collection, plus PowerShell forwarding entry points for offline training.
 - Documentation rewritten around the components that are actually present in this repository snapshot.
+
+## What Is Actually Implemented Today
+
+| Component | Status | Notes |
+|---|---|---|
+| `offline-rl` data layer | Real | `TrajectoryStore`, `ReplayBuffer`, prioritized sampling, and slime-compatible replay data source are implemented and tested. |
+| `IQL`, `CQL`, `AWAC` | Real lightweight baselines | These are functional offline RL algorithms built around small text encoders for CPU validation and research iteration. |
+| `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
+| `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
+| Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
+| Full LLM fine-tuning | External-runtime dependent | The repository provides the launch path, but actual large-scale training still needs slime, model checkpoints, and a Linux-like multi-GPU environment. |
+
+This repository does not claim to replace the upstream full training runtime. It makes the offline data, replay, and fine-tuning path explicit and easier to validate.
 
 ## Repository Scope
 
@@ -94,9 +115,25 @@ cd offline-rl
 python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
+python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2
 ```
 
-#### 3. Launch full slime-based offline fine-tuning
+If your dataset stores behavior-policy log-probs in `step.info` or trajectory metadata, the GRPO baseline will use them directly for a more faithful off-policy ratio. See [offline-rl/README.md](./offline-rl/README.md) for the accepted fields.
+
+#### 3. Optionally compute critic-derived weights for slime offline fine-tuning
+
+```bash
+cd ../openclaw-offline
+
+python compute_weights.py \
+	--data ../offline-rl/data/osworld_trajs.jsonl \
+	--output ../offline-rl/data/osworld_iql_weights.json \
+	--algo iql \
+	--train-steps 500 \
+	--beta 3.0
+```
+
+#### 4. Launch full slime-based offline fine-tuning
 
 ```bash
 cd ../openclaw-offline
@@ -119,6 +156,12 @@ cd ..\openclaw-offline
 If you prefer the generic launcher, set `OFFLINE_TRAJECTORY_STORE` yourself and then run either [openclaw-offline/run_qwen35_4b_offline_rl.sh](./openclaw-offline/run_qwen35_4b_offline_rl.sh) or `run_qwen35_4b_offline_rl.ps1`.
 The PowerShell launchers forward to WSL first and then fall back to Git Bash when available. Full offline training still requires the same Linux-like multi-GPU runtime expected by slime and upstream OpenClaw-RL.
 
+## Recommended Offline Reading Order
+
+1. Read [offline-rl/docs/implementation_status.md](./offline-rl/docs/implementation_status.md) to understand what is production-facing versus intentionally lightweight.
+2. Read [offline-rl/README.md](./offline-rl/README.md) for data contracts, supported algorithms, and collector usage.
+3. Read [openclaw-offline/README.md](./openclaw-offline/README.md) for slime launch requirements and weight-file behavior.
+
 ## Supported Offline Benchmarks
 
 | Benchmark | Mock collection | Task configs | Offline replay wrapper |
@@ -130,24 +173,19 @@ The PowerShell launchers forward to WSL first and then fall back to Git Bash whe
 
 The mock adapters are designed for CPU validation and repo-level testing. Real benchmark execution still requires the corresponding external packages, simulators, or service environments.
 
-## Recommended Reading Order
-
-1. Start here for the repository overview.
-2. Read [offline-rl/README.md](./offline-rl/README.md) for collection, replay, and offline algorithm usage.
-3. Read [openclaw-offline/README.md](./openclaw-offline/README.md) for slime-based offline fine-tuning.
-4. Use the method-specific READMEs under [openclaw-rl](./openclaw-rl), [openclaw-opd](./openclaw-opd), and [openclaw-combine](./openclaw-combine) only when you need the original online methods.
-
 <a id="status"></a>
 ## Status
 
 - `offline-rl` CPU test suite is passing in this fork.
 - Multi-benchmark collection has been validated for OSWorld, AndroidWorld, WebArena, and AlfWorld.
 - Short offline-training smoke runs have been validated on replayed benchmark trajectories.
+- Off-Policy GRPO can now consume replayed behavior-policy log-probs when the dataset provides them.
 - Full-scale LLM training still requires the original slime runtime stack, model checkpoints, and a Linux-like multi-GPU environment.
 
-## Notes
+## Scope Boundaries
 
-- The offline collection entry points are available as direct Python commands, bash wrappers, and PowerShell wrappers.
+- The lightweight offline algorithms are meant for CPU validation, ablation, and replay-policy experiments. They are not direct replacements for a full Qwen3-VL policy stack.
+- The benchmark adapters included here prioritize a shared interface and repo-level testing; real benchmark fidelity still depends on external environments.
 - The PowerShell offline-training launchers are forwarding entry points; real training still runs through WSL or another Linux-like shell environment.
 - This fork intentionally keeps the algorithm folders and file layout close to upstream so existing launch and integration patterns remain recognizable.
 
