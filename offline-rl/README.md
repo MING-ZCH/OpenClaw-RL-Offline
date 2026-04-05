@@ -45,6 +45,12 @@ flowchart LR
 - `Retrospex` (Xiang et al., EMNLP 2024, arXiv 2505.11807): frozen LLM + offline IQL-style Q/V critic; no policy gradient; at inference, `rescore_actions()` combines LLM log-probs with the critic: `score(a|s) = lm_logp + λ·Q(s,a)`; suitable for frozen-policy settings where only the critic is trainable.
 - `WebRL` (Qi et al., ICLR 2025, arXiv 2411.02337): off-policy GRPO augmented with an Outcome-Supervised Reward Model (ORM); ORM is a binary MLP classifier trained on outcome labels; augmented reward `r_aug = r_outcome + α·σ(ORM(s,a))` converts sparse trajectory rewards into dense per-step signals; curriculum difficulty tracker reports batch zone (easy/medium/hard).
 - `GLIDER` (Hu et al., ICML 2025, arXiv 2505.19761): hierarchical offline RL; high-level `PlanEncoder` maps states to latent plan embeddings + IQL expectile value V_H trained on outcome rewards; low-level IQL Q+V+actor conditioned on plan-augmented states; AWR advantage-weighting at both levels; effectively reduces the per-step credit-assignment horizon.
+- `ArCHer` (Zhou et al., ICML 2024, arXiv 2402.19446): hierarchical IQL+AWR for multi-turn dialogue agents; twin-Q + V critic with expectile regression (tau=0.9); AWR actor with advantage weighting; three separate optimizer groups (encoder, critic, actor).
+- `BCQ` (Fujimoto et al., ICML 2019, arXiv 1812.02900): batch-constrained Q-learning; explicit BehaviorCloningNetwork constrains policy near data distribution; twin-Q + V with BC loss; prevents extrapolation error.
+- `DPO` (Rafailov et al., NeurIPS 2023, arXiv 2305.18290): direct preference optimization; eliminates reward model via closed-form KL-constrained objective; intra-batch pairing of winners/losers by outcome reward threshold.
+- `KTO` (Ethayarajh et al., ICML 2024, arXiv 2402.01306): Kahneman-Tversky optimization; works on single transitions with binary success/failure labels; no paired preference data required; loss-averse weighting of desirable vs undesirable outcomes.
+- `REBEL` (Gao et al., NeurIPS 2024, arXiv 2404.16767): critic-free RL via pairwise reward regression; no value function; squared loss on reward differences; lightest-weight RL algorithm in the library.
+- `DigiRL` (Bai et al., arXiv 2406.11896, 2024): doubly-robust offline RL for device-control agents; BCE-trained value functions (V_step, V_instruct); doubly-robust step advantage blending MC+TD; hard-filter AWR actor update.
 
 ### Benchmark Adapters
 
@@ -122,6 +128,12 @@ python scripts/train_offline.py --algo arpo --data data/osworld_trajs.jsonl --st
 python scripts/train_offline.py --algo retrospex --data data/osworld_trajs.jsonl --steps 500 --retrospex-tau 0.7 --retrospex-lambda-scale 1.0
 python scripts/train_offline.py --algo webrl --data data/osworld_trajs.jsonl --steps 500 --webrl-alpha-orm 0.5
 python scripts/train_offline.py --algo glider --data data/osworld_trajs.jsonl --steps 500 --glider-plan-dim 64 --glider-beta 1.0
+python scripts/train_offline.py --algo archer --data data/osworld_trajs.jsonl --steps 500 --archer-tau 0.9 --archer-beta 3.0
+python scripts/train_offline.py --algo bcq --data data/osworld_trajs.jsonl --steps 500 --bcq-tau 0.7 --bcq-bc-weight 1.0
+python scripts/train_offline.py --algo dpo --data data/osworld_trajs.jsonl --steps 500 --dpo-beta 0.1
+python scripts/train_offline.py --algo kto --data data/osworld_trajs.jsonl --steps 500
+python scripts/train_offline.py --algo rebel --data data/osworld_trajs.jsonl --steps 500 --rebel-eta 1.0
+python scripts/train_offline.py --algo digirl --data data/osworld_trajs.jsonl --steps 500 --digirl-lam 0.5 --digirl-adv-threshold 0.1
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 
 # Compare multiple algorithms side-by-side
@@ -182,6 +194,12 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `Retrospex` | Frozen-LLM offline RL — inference-time critic rescoring (Xiang et al. EMNLP 2024) | Trains IQL-style twin Q + V entirely offline; at inference `rescore_actions()` combines LLM log-probs with Q-values; LLM weights never updated; drop-in for any frozen agent. |
 | `WebRL` | ORM-augmented GRPO for web agents (Qi et al. ICLR 2025) | Binary ORM MLP trained on outcome labels provides per-step dense reward; `r_aug = r_outcome + α·σ(ORM)`; curriculum difficulty reporting; suitable when sparse outcome labels are the only supervision. |
 | `GLIDER` | Hierarchical offline RL — plan+execution decomposition (Hu et al. ICML 2025) | Two-level IQL: high-level plan encoder + V_H on outcome rewards, low-level Q+actor conditioned on plan embedding; reduces effective credit-assignment horizon for long-horizon tasks. |
+| `ArCHer` | Hierarchical IQL+AWR for multi-turn dialogue agents (Zhou et al. ICML 2024) | Twin-Q + V with expectile regression (tau=0.9); AWR actor; three optimizer groups; suitable for multi-turn agentic trajectories. |
+| `BCQ` | Batch-constrained Q-learning (Fujimoto et al. ICML 2019) | Explicit BehaviorCloningNetwork constrains policy near data; twin-Q + V; prevents extrapolation error on OOD actions. |
+| `DPO` | Direct preference optimization for LLM alignment (Rafailov et al. NeurIPS 2023) | Eliminates reward model; intra-batch pairing by outcome threshold; contrastive log-ratio loss. |
+| `KTO` | Kahneman-Tversky optimization for binary feedback (Ethayarajh et al. ICML 2024) | Works with single transitions + binary labels; no preference pairs needed; loss-averse weighting. |
+| `REBEL` | Critic-free pairwise reward regression (Gao et al. NeurIPS 2024) | No value function; lightest-weight RL; squared loss on reward differences; only needs policy + rewards. |
+| `DigiRL` | Doubly-robust offline RL for device-control agents (Bai et al. 2024) | BCE value functions; doubly-robust MC+TD advantage; hard-filter AWR; per-step success probability output. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline

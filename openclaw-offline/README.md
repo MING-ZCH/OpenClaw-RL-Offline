@@ -35,11 +35,12 @@ python compute_weights.py \
   --beta 3.0
 ```
 
-Supported critic algorithms: `iql` (default), `cql`, `td3bc`.
+Supported critic algorithms: all 21 offline RL algorithms from the [offline-rl](../offline-rl/README.md) package.
 
-- `iql`: expectile regression; returns `Q(s,a) - V(s)` as advantages.
-- `cql`: conservative Q-learning; returns Q-values as advantage proxy.
-- `td3bc`: TD3 with BC regularization (Fujimoto & Gu, NeurIPS 2021); returns Q1-values as advantage proxy.
+Key algorithm categories:
+- **True advantage (Q−V)**: `iql`, `crr`, `edac`, `oreo`, `archer`, `bcq` — use `get_advantages()` for IQL-style advantages.
+- **Q/value proxy**: `cql`, `td3bc`, `grpo`, `awac`, `sorl`, `arpo`, `dt`, `rwft`, `retrospex`, `glider`, `dpo`, `kto`, `rebel` — use `get_action_values()` as proxy.
+- **Success probability**: `webrl` (ORM P(success) ∈ [0,1]), `digirl` (V_step success probability ∈ [0,1]).
 
 If `OFFLINE_WEIGHT_PATH` is not provided at launch time, `offline_loss.py` falls back to reward/outcome-based proxy weights. That path is useful for smoke tests, but critic-derived weights are the recommended route when you want a closer offline-RL signal.
 
@@ -79,7 +80,7 @@ The PowerShell entry points prefer WSL and then fall back to Git Bash. They are 
 |---|---|
 | `offline_rollout.py` | Replays trajectory data into slime rollout output |
 | `offline_loss.py` | Optional advantage-weighted loss for offline policy extraction |
-| `compute_weights.py` | Trains small offline critics (IQL, CQL, or TD3+BC) and exports advantage weights |
+| `compute_weights.py` | Trains small offline critics (any of 21 algorithms) and exports advantage weights |
 | `run_qwen35_4b_offline_rl.{sh,ps1}` | Generic offline training launcher |
 | `run_qwen35_4b_{osworld,androidworld,webarena,alfworld}_offline_rl.{sh,ps1}` | Thin benchmark-specific wrappers |
 

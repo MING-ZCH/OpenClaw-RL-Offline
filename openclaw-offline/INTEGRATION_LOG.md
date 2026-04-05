@@ -160,6 +160,57 @@ retrospex  webrl  glider
    | `--glider-beta` | 1.0 | GLIDER AWR temperature |
    | `--glider-tau` | 0.7 | GLIDER IQL expectile |
 
+## Bridge Extension (v4) — 6 New Algorithms (15 → 21)
+
+### Trigger
+User request: extend the algorithm library with ArCHer, BCQ, DPO, KTO, REBEL, DigiRL.
+
+After completing the 15-algo bridge (commit `efcb42c`), 6 new offline RL algorithms were
+implemented and integrated across the entire stack.
+
+### New Algorithms
+
+| Algorithm | Paper | Type | Key Feature |
+|-----------|-------|------|-------------|
+| ArCHer | ICML 2024 (arXiv 2402.19446) | Hierarchical IQL+AWR | Multi-turn dialogue; tau=0.9; 3 optimizer groups |
+| BCQ | ICML 2019 (arXiv 1812.02900) | Batch-Constrained Q | BehaviorCloningNetwork; prevents OOD extrapolation |
+| DPO | NeurIPS 2023 (arXiv 2305.18290) | Direct Preference Opt | No reward model; intra-batch pairing |
+| KTO | ICML 2024 (arXiv 2402.01306) | Kahneman-Tversky Opt | Binary labels; no preference pairs needed |
+| REBEL | NeurIPS 2024 (arXiv 2404.16767) | Critic-Free Regression | Lightest-weight RL; pairwise reward regression |
+| DigiRL | arXiv 2406.11896 (2024) | Doubly-Robust AWR | BCE V_step/V_instruct; hard-filter actor |
+
+### compute_weights.py Updates
+
+**Previous**: 15+4=19 algorithms (iql...glider + archer/bcq/dpo/kto)
+**Now**: 21 algorithms (added rebel, digirl)
+
+1. **`_build_algo()`**: Added `rebel` and `digirl` branches with full hyperparameter support.
+2. **`_HAS_ADVANTAGES` fix**: Removed `"awac"` — AWAC only has `get_action_values()`, not `get_advantages()`.
+   **Before**: `{"iql", "awac", "crr", "edac", "oreo", "archer", "bcq"}`
+   **After**: `{"iql", "crr", "edac", "oreo", "archer", "bcq"}`
+3. **New CLI args**:
+
+   | New Flag | Default | Algorithm |
+   |----------|---------|-----------|
+   | `--rebel-eta` | 1.0 | REBEL scale parameter |
+   | `--rebel-ref-interval` | 1 | REBEL reference update interval |
+   | `--digirl-lam` | 0.5 | DigiRL MC vs TD mixing weight |
+   | `--digirl-adv-threshold` | 0.1 | DigiRL hard-filter threshold |
+   | `--digirl-max-grad-norm` | 1.0 | DigiRL gradient clipping |
+
+### Bug Fixes
+1. **AWAC `_HAS_ADVANTAGES`**: AWAC was incorrectly in the set; calling `get_advantages()` on AWAC would cause `AttributeError`. Fixed by removing from set.
+2. **ArCHer `actor_lr=None`**: Constructor did not handle `None`; `Adam(lr=None)` raised `TypeError`. Fixed: `Optional[float]`, defaults to `lr`.
+3. **REBEL `_encode_batch` unpacking**: Parent `OffPolicyGRPO._encode_batch()` returns `(s, a)` (2 values), not `(s, a, s', r, d)` (5). Fixed to unpack 2 + extract rewards separately.
+
+### Test Results
+- **offline-rl**: 185/185 passed (179 existing + 6 new)
+- **openclaw-offline**: 29/29 passed (updated `_HAS_ADVANTAGES` assertion)
+- **Total**: 214/214
+
+### Commit
+`638638e` — feat: add 6 new offline RL algorithms (ArCHer, BCQ, DPO, KTO, REBEL, DigiRL)
+
 #### Advantage Dispatch Table
 
 | Algorithm | Method | Notes |

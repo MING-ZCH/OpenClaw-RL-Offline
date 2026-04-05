@@ -22,7 +22,7 @@ Documentation:
 flowchart LR
 	A[Benchmark tasks or gui-rl results] --> B[TrajectoryStore JSONL]
 	B --> C[ReplayBuffer and TransitionBatch]
-	C --> D[IQL / CQL / AWAC / GRPO baselines]
+	C --> D[IQL / CQL / AWAC / GRPO / ... 21 algorithms]
 	D --> E[Weights, diagnostics, replay metrics]
 	B --> F[openclaw-offline replay path]
 	E --> F
@@ -59,6 +59,12 @@ flowchart LR
 | `Retrospex` | Real lightweight baseline | Frozen-LLM offline critic (Xiang et al. EMNLP 2024, arXiv 2505.11807); trains IQL twin Q+V offline, never updates LLM weights; `rescore_actions()` combines LLM log-probs + λ·Q(s,a) at inference. |
 | `WebRL` | Real lightweight baseline | ORM-augmented off-policy GRPO (Qi et al. ICLR 2025, arXiv 2411.02337); binary ORM classifier converts sparse outcome labels into dense per-step rewards; curriculum difficulty tracker reports batch zone (easy/medium/hard). |
 | `GLIDER` | Real lightweight baseline | Hierarchical offline RL (Hu et al. ICML 2025, arXiv 2505.19761); `PlanEncoder` maps states to latent plan embeddings, high-level IQL V_H on outcome rewards, low-level IQL Q+actor conditioned on plan; reduces effective credit-assignment horizon. |
+| `ArCHer` | Real lightweight baseline | Hierarchical IQL+AWR for multi-turn dialogue agents (Zhou et al. ICML 2024, arXiv 2402.19446); twin-Q + V with expectile regression (tau=0.9); AWR actor; three separate optimizer groups. |
+| `BCQ` | Real lightweight baseline | Batch-constrained Q-learning (Fujimoto et al. ICML 2019, arXiv 1812.02900); explicit BehaviorCloningNetwork constrains policy near data; twin-Q + V; prevents extrapolation error. |
+| `DPO` | Real lightweight baseline | Direct preference optimization for LLM alignment (Rafailov et al. NeurIPS 2023, arXiv 2305.18290); eliminates reward model; intra-batch pairing by outcome reward threshold. |
+| `KTO` | Real lightweight baseline | Kahneman-Tversky optimization for binary feedback (Ethayarajh et al. ICML 2024, arXiv 2402.01306); single transitions with binary labels; no preference pairs required. |
+| `REBEL` | Real lightweight baseline | Critic-free pairwise reward regression (Gao et al. NeurIPS 2024, arXiv 2404.16767); no value function; lightest-weight RL algorithm in the library. |
+| `DigiRL` | Real lightweight baseline | Doubly-robust offline RL for device-control agents (Bai et al. arXiv 2406.11896, 2024); BCE value functions; DR advantage; hard-filter AWR actor. |
 | `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
 | `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
 | Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
@@ -71,7 +77,7 @@ This repository does not claim to replace the upstream full training runtime. It
 | Goal | Start here | Why |
 |---|---|---|
 | Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
-| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, or GLIDER on replay data without entering the full slime stack. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, KTO, REBEL, or DigiRL on replay data without entering the full slime stack. |
 | Benchmark multiple algorithms | `offline-rl/scripts/evaluate_algorithms.py` | Trains all specified algorithms and outputs a comparison table (final loss, trend, Q stats, time) with optional CSV/Markdown export. |
 | Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
 | Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |
