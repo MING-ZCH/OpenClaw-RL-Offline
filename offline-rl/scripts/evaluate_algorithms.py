@@ -46,6 +46,9 @@ from offline_rl.algorithms.rw_finetuning import RWFineTuning
 from offline_rl.algorithms.oreo import OREO
 from offline_rl.algorithms.sorl import SORLOffPolicyGRPO
 from offline_rl.algorithms.arpo import ARPO
+from offline_rl.algorithms.retrospex import Retrospex
+from offline_rl.algorithms.webrl import WebRL
+from offline_rl.algorithms.glider import GLIDER
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -53,7 +56,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -68,6 +71,9 @@ _ALGO_REFS = {
     "oreo": "Wang et al. arXiv 2412.16145",
     "sorl": "Li et al. arXiv 2511.20718",
     "arpo": "arXiv 2505.16282 (dvlab-research/ARPO)",
+    "retrospex": "Xiang et al. EMNLP 2024 arXiv 2505.11807",
+    "webrl": "Qi et al. ICLR 2025 arXiv 2411.02337",
+    "glider": "Hu et al. ICML 2025 arXiv 2505.19761",
 }
 
 
@@ -112,6 +118,15 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
             **common, clip_ratio_low=0.2, clip_ratio_high=0.3,
             n_policy_updates=2, arpo_buffer_size=8,
         )
+    if name == "retrospex":
+        return Retrospex(**common, tau=0.7, lambda_scale=1.0)
+    if name == "webrl":
+        return WebRL(
+            **common, clip_ratio=0.2, kl_coeff=0.01, n_policy_updates=2,
+            alpha_orm=0.5,
+        )
+    if name == "glider":
+        return GLIDER(**common, plan_dim=None, beta=1.0, tau=0.7)
     raise ValueError("Unknown algorithm: %s" % name)
 
 

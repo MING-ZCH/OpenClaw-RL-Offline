@@ -44,6 +44,9 @@ from offline_rl.algorithms.rw_finetuning import RWFineTuning
 from offline_rl.algorithms.oreo import OREO
 from offline_rl.algorithms.sorl import SORLOffPolicyGRPO
 from offline_rl.algorithms.arpo import ARPO
+from offline_rl.algorithms.retrospex import Retrospex
+from offline_rl.algorithms.webrl import WebRL
+from offline_rl.algorithms.glider import GLIDER
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -62,6 +65,9 @@ ALGO_MAP = {
     "oreo": OREO,
     "sorl": SORLOffPolicyGRPO,
     "arpo": ARPO,
+    "retrospex": Retrospex,
+    "webrl": WebRL,
+    "glider": GLIDER,
 }
 
 
@@ -270,6 +276,46 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             all_fail_std_threshold=args.arpo_all_fail_std,
             all_fail_mean_threshold=args.arpo_all_fail_mean,
         )
+    if args.algo == "retrospex":
+        return Retrospex(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            tau=args.retrospex_tau,
+            lambda_scale=args.retrospex_lambda_scale,
+        )
+    if args.algo == "webrl":
+        return WebRL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            clip_ratio=args.clip_ratio,
+            kl_coeff=args.kl_coeff,
+            n_policy_updates=args.n_policy_updates,
+            alpha_orm=args.webrl_alpha_orm,
+            orm_lr=args.webrl_orm_lr,
+        )
+    if args.algo == "glider":
+        return GLIDER(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            plan_dim=args.glider_plan_dim,
+            beta=args.glider_beta,
+            tau=args.glider_tau,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -334,7 +380,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -397,6 +443,23 @@ def main():
                         help="ARPO: reward std threshold for all-fail group detection (default 0.05)")
     parser.add_argument("--arpo-all-fail-mean", type=float, default=0.2,
                         help="ARPO: reward mean threshold for all-fail group detection (default 0.2)")
+    # Retrospex specific
+    parser.add_argument("--retrospex-tau", type=float, default=0.7,
+                        help="Retrospex IQL expectile parameter (default 0.7)")
+    parser.add_argument("--retrospex-lambda-scale", type=float, default=1.0,
+                        help="Retrospex Q-critic weight in rescoring: score = lm_logp + lambda*Q (default 1.0)")
+    # WebRL specific
+    parser.add_argument("--webrl-alpha-orm", type=float, default=0.5,
+                        help="WebRL ORM reward mix weight: r_aug = r_outcome + alpha*sigma(ORM) (default 0.5)")
+    parser.add_argument("--webrl-orm-lr", type=float, default=None,
+                        help="WebRL ORM optimizer learning rate (defaults to --lr if unset)")
+    # GLIDER specific
+    parser.add_argument("--glider-plan-dim", type=int, default=None,
+                        help="GLIDER latent plan embedding dimension (defaults to hidden_dim//4)")
+    parser.add_argument("--glider-beta", type=float, default=1.0,
+                        help="GLIDER AWR temperature for high/low level advantage weighting (default 1.0)")
+    parser.add_argument("--glider-tau", type=float, default=0.7,
+                        help="GLIDER IQL expectile parameter for V-function training (default 0.7)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

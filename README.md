@@ -56,6 +56,9 @@ flowchart LR
 | `OREO` | Real lightweight baseline | Soft Bellman offline RL (Wang et al., arXiv 2412.16145); single Q + GaussianActor; V_soft = β·log_mean_exp(Q/β) over MC samples; MaxEnt entropy objective; validated on ALFWorld. |
 | `SORL` | Real lightweight baseline | Stabilized off-policy GRPO (Li et al., arXiv 2511.20718); clipping-triggered normalization (CTN) skips advantage normalization when IS ratio is stable; long-horizon gradient collapse prevention. |
 | `ARPO` | Real lightweight baseline | Adaptive replay GRPO (arXiv 2505.16282); per-task success buffer injects 1 past success when training group is all-fail; DAPO asymmetric clipping; no KL; OSWorld validated. |
+| `Retrospex` | Real lightweight baseline | Frozen-LLM offline critic (Xiang et al. EMNLP 2024, arXiv 2505.11807); trains IQL twin Q+V offline, never updates LLM weights; `rescore_actions()` combines LLM log-probs + λ·Q(s,a) at inference. |
+| `WebRL` | Real lightweight baseline | ORM-augmented off-policy GRPO (Qi et al. ICLR 2025, arXiv 2411.02337); binary ORM classifier converts sparse outcome labels into dense per-step rewards; curriculum difficulty tracker reports batch zone (easy/medium/hard). |
+| `GLIDER` | Real lightweight baseline | Hierarchical offline RL (Hu et al. ICML 2025, arXiv 2505.19761); `PlanEncoder` maps states to latent plan embeddings, high-level IQL V_H on outcome rewards, low-level IQL Q+actor conditioned on plan; reduces effective credit-assignment horizon. |
 | `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
 | `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
 | Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
@@ -68,7 +71,7 @@ This repository does not claim to replace the upstream full training runtime. It
 | Goal | Start here | Why |
 |---|---|---|
 | Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
-| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, or ARPO on replay data without entering the full slime stack. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, or GLIDER on replay data without entering the full slime stack. |
 | Benchmark multiple algorithms | `offline-rl/scripts/evaluate_algorithms.py` | Trains all specified algorithms and outputs a comparison table (final loss, trend, Q stats, time) with optional CSV/Markdown export. |
 | Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
 | Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |

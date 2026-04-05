@@ -19,6 +19,9 @@ from .rw_finetuning import RWFineTuning
 from .oreo import OREO
 from .sorl import SORLOffPolicyGRPO
 from .arpo import ARPO, ARPOSuccessBuffer
+from .retrospex import Retrospex
+from .webrl import WebRL, OutcomeSupervisedRewardModel
+from .glider import GLIDER, PlanEncoder
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -43,4 +46,9 @@ __all__ = [
     "SORLOffPolicyGRPO",
     "ARPO",
     "ARPOSuccessBuffer",
+    "Retrospex",
+    "WebRL",
+    "OutcomeSupervisedRewardModel",
+    "GLIDER",
+    "PlanEncoder",
 ]

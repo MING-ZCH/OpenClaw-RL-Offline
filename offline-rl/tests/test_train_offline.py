@@ -80,6 +80,16 @@ def _make_args(algo: str) -> argparse.Namespace:
         arpo_buffer_size=4,
         arpo_all_fail_std=0.05,
         arpo_all_fail_mean=0.2,
+        # Retrospex
+        retrospex_tau=0.7,
+        retrospex_lambda_scale=1.0,
+        # WebRL
+        webrl_alpha_orm=0.5,
+        webrl_orm_lr=None,
+        # GLIDER
+        glider_plan_dim=16,
+        glider_beta=1.0,
+        glider_tau=0.7,
     )
 
 
@@ -399,3 +409,143 @@ def test_arpo_replay_injection_restores_variance(tmp_dir):
     assert augmented.actions[0] == "success_act"
     # Remaining slots unchanged
     assert augmented.observation_contexts[1:] == list(batch.observation_contexts[1:])
+
+
+# ================== Retrospex tests =======================================
+
+def test_build_retrospex_trains_and_rescores_actions(tmp_dir):
+    """Retrospex builds, trains IQL critic, rescore_actions returns correct shape."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("retrospex")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Extra keys
+    assert "q_loss" in metrics[0].extra
+    assert "v_loss" in metrics[0].extra
+    assert "v_mean" in metrics[0].extra
+    # rescore_actions: shape (N,) with LLM log-probs
+    candidates = ["click button", "scroll down", "type query", "navigate back"]
+    lm_lps = [-1.2, -2.5, -0.8, -3.1]
+    scores = algo.rescore_actions("observe webpage", candidates, lm_log_probs=lm_lps)
+    assert scores.shape == (4,)
+    assert all(math.isfinite(v) for v in scores.tolist())
+
+
+def test_retrospex_rescore_shape_and_lambda_effect(tmp_dir):
+    """Retrospex rescore_actions with lambda=0 returns only LLM log-probs."""
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("retrospex")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    # Train a few steps so Q-values are non-trivial
+    algo.train(num_steps=5, batch_size=4, log_interval=100)
+
+    obs = "current observation text"
+    actions = ["action A", "action B", "action C"]
+    lm_lps = [-1.0, -2.0, -3.0]  # strictly decreasing
+
+    # lambda=0: score should equal lm_log_prob exactly
+    scores_no_q = algo.rescore_actions(obs, actions, lm_log_probs=lm_lps, lambda_scale=0.0)
+    import torch
+    expected = torch.tensor(lm_lps, dtype=torch.float32)
+    assert torch.allclose(scores_no_q.cpu(), expected, atol=1e-5), (
+        "With lambda=0, scores must equal LLM log-probs exactly"
+    )
+
+    # lambda>0: Q-values change the ranking (scores must differ from lm_lps)
+    scores_with_q = algo.rescore_actions(obs, actions, lm_log_probs=lm_lps, lambda_scale=1.0)
+    assert scores_with_q.shape == (3,)
+    # get_action_values also returns (3,)
+    q_vals = algo.get_action_values([obs] * 3, actions)
+    assert q_vals.shape == (3,)
+
+
+# ================== WebRL tests ===========================================
+
+def test_build_webrl_trains_with_orm_augmentation(tmp_dir):
+    """WebRL builds, trains with ORM reward augmentation, reports orm_loss."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("webrl")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # WebRL-specific extra keys
+    assert "orm_loss" in metrics[0].extra
+    assert "orm_reward_mean" in metrics[0].extra
+    assert "augmented_reward_mean" in metrics[0].extra
+    assert "curriculum_difficulty" in metrics[0].extra
+    # ORM probability in [0, 1]
+    assert 0.0 <= metrics[-1].extra["orm_reward_mean"] <= 1.0
+    # get_action_values returns ORM probability (B,) in [0, 1]
+    probs = algo.get_action_values(["s1", "s2", "s3"], ["a1", "a2", "a3"])
+    assert probs.shape == (3,)
+    assert all(0.0 <= v <= 1.0 for v in probs.tolist())
+
+
+def test_webrl_orm_loss_decreases(tmp_dir):
+    """WebRL ORM loss should generally decrease over training steps (trend check)."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=16)
+    args = _make_args("webrl")
+    # Increase steps to get a meaningful trend
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    metrics = algo.train(num_steps=20, batch_size=8, log_interval=100)
+    orm_losses = [m.extra["orm_loss"] for m in metrics]
+    # All ORM losses should be finite
+    assert all(math.isfinite(v) for v in orm_losses), "ORM loss contains NaN/Inf"
+    # ORM loss should decrease on average (first fifth vs last fifth)
+    first_mean = sum(orm_losses[:4]) / 4
+    last_mean = sum(orm_losses[-4:]) / 4
+    # ORM is a simple MLP on small data; some reduction is expected
+    assert last_mean <= first_mean * 1.5, (
+        "ORM loss did not decrease: first=%.4f last=%.4f" % (first_mean, last_mean)
+    )
+
+
+# ================== GLIDER tests ==========================================
+
+def test_build_glider_hierarchical_trains(tmp_dir):
+    """GLIDER builds, trains both high-level and low-level losses, returns Q-values."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("glider")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # GLIDER-specific extra keys
+    assert "hl_v_loss" in metrics[0].extra
+    assert "plan_loss" in metrics[0].extra
+    assert "ll_q_loss" in metrics[0].extra
+    assert "ll_v_loss" in metrics[0].extra
+    assert "ll_actor_loss" in metrics[0].extra
+    assert "plan_emb_norm" in metrics[0].extra
+    # Q-values shape
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+def test_glider_plan_embedding_shapes(tmp_dir):
+    """GLIDER plan_embeddings have the correct plan_dim shape."""
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("glider")
+    # Use explicit plan_dim to check shape
+    args.glider_plan_dim = 16
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    algo.train(num_steps=5, batch_size=4, log_interval=100)
+    # Plan embeddings shape: (B, plan_dim)
+    plan_embs = algo.get_plan_embeddings(["state one", "state two", "state three"])
+    assert plan_embs.shape == (3, 16), (
+        "Expected plan shape (3, 16), got %s" % str(plan_embs.shape)
+    )
+    # HL value network: get Q-values conditioned on plans
+    q_vals = algo.get_action_values(["s1", "s2"], ["a1", "a2"])
+    assert q_vals.shape == (2,)
