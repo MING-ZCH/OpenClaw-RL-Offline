@@ -2,6 +2,24 @@
 
 This file contains bilingual publicity copy for OpenClaw-RL-Offline. The messaging is intentionally explicit that the project is based on OpenClaw-RL rather than positioned as a disconnected new method.
 
+## Messaging Matrix
+
+| Audience | Core message | Evidence to emphasize |
+|---|---|---|
+| Offline RL researchers | This repo turns OpenClaw-style offline replay into a clearer, testable workflow. | IQL/CQL/AWAC/GRPO baselines, replay buffer, implementation-status doc. |
+| Agent benchmark users | You can collect and replay benchmark trajectories without immediately booting the full training runtime. | OSWorld, AndroidWorld, WebArena, AlfWorld wrappers and mock validation. |
+| OpenClaw users | This is an offline extension, not a rewrite of upstream OpenClaw-RL. | Maintains upstream method layout and reuses slime fine-tuning path. |
+| Engineering teams | The repo now has better documentation, validated scripts, and a cleaner publishing story. | Dual-language docs, smoke tests, Windows launch notes, remote sync. |
+
+## Figure Ideas For Release Posts
+
+| Figure | Purpose | Suggested source |
+|---|---|---|
+| Offline workflow diagram | Show collection → replay → baseline → slime fine-tuning | Adapt the Mermaid flowchart from `README.md` |
+| Implementation scope table | Make "real vs lightweight" boundaries explicit | Reuse `offline-rl/docs/implementation_status.md` |
+| Benchmark support matrix | Show the four supported benchmark tracks in one slide | Reuse the benchmark table from `README.md` |
+| Entry-point cheat sheet | Help new users choose scripts quickly | Reuse the entry-point table from `README.md` |
+
 ## Chinese Short Version
 
 我们开源了 OpenClaw-RL-Offline，一个基于 OpenClaw-RL 的 offline fork，重点把 benchmark 轨迹采集、offline replay、以及基于 slime 的离线微调链路系统化整理出来。

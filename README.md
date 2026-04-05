@@ -16,6 +16,19 @@ Documentation:
 - Offline package details: [offline-rl/README.md](./offline-rl/README.md)
 - slime bridge details: [openclaw-offline/README.md](./openclaw-offline/README.md)
 
+## Offline Workflow At A Glance
+
+```mermaid
+flowchart LR
+	A[Benchmark tasks or gui-rl results] --> B[TrajectoryStore JSONL]
+	B --> C[ReplayBuffer and TransitionBatch]
+	C --> D[IQL / CQL / AWAC / GRPO baselines]
+	D --> E[Weights, diagnostics, replay metrics]
+	B --> F[openclaw-offline replay path]
+	E --> F
+	F --> G[slime distributed fine-tuning]
+```
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.7%2B-blue.svg)](https://www.python.org/)
 [![Status](https://img.shields.io/badge/Status-Research%20Release-orange.svg)](#status)
@@ -41,6 +54,16 @@ Documentation:
 | Full LLM fine-tuning | External-runtime dependent | The repository provides the launch path, but actual large-scale training still needs slime, model checkpoints, and a Linux-like multi-GPU environment. |
 
 This repository does not claim to replace the upstream full training runtime. It makes the offline data, replay, and fine-tuning path explicit and easier to validate.
+
+## Which Entry Point Should You Use?
+
+| Goal | Start here | Why |
+|---|---|---|
+| Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, and GRPO on replay data without entering the full slime stack. |
+| Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
+| Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |
+| Audit implementation scope | `offline-rl/docs/implementation_status.md` | Separates real implemented features from intentional approximations. |
 
 ## Repository Scope
 
