@@ -100,8 +100,24 @@ Or on Windows PowerShell:
 python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
-python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2
+python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 ```
+
+Or use the launcher wrappers with environment variables, closer to the style of the upstream OpenClaw shell entry points:
+
+```bash
+OFFLINE_TRAIN_ALGO=grpo OFFLINE_TRAIN_DATA=data/osworld_trajs.jsonl bash scripts/run_train_offline.sh
+```
+
+```powershell
+$env:OFFLINE_TRAIN_ALGO = "grpo"
+$env:OFFLINE_TRAIN_DATA = "data/osworld_trajs.jsonl"
+.\scripts\run_train_offline.ps1
+```
+
+The direct trainer now defaults to `cuda`, matching the GPU-first expectation of the upstream OpenClaw launch scripts. It also supports `cuda:N`, `auto`, and `cpu` when you need an explicit override. This path is still a lightweight single-process trainer for replay experiments, not a replacement for the multi-GPU slime launch path.
+
+If you are validating on a CPU-only development machine, pass `--device cpu` explicitly.
 
 ### Data contract for faithful Off-Policy GRPO
 
@@ -152,7 +168,7 @@ This package is intentionally shaped around the upstream OpenClaw and slime inte
 
 ## Current Boundaries
 
-- CPU is sufficient for testing and small-scale replay experiments.
+- The direct trainer is now GPU-first by default and supports explicit CPU fallback for local validation.
 - Collection wrappers are available for both bash and PowerShell.
 - The text encoders and tokenization scheme are intentionally lightweight and CPU-friendly; they are not meant to stand in for a full Qwen3-VL backbone.
 - Real benchmark execution still depends on the corresponding external benchmark packages or services.

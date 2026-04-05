@@ -138,8 +138,12 @@ cd offline-rl
 python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
-python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2
+python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 ```
+
+For a shell-style launcher closer to the upstream OpenClaw entry points, use [offline-rl/scripts/run_train_offline.sh](./offline-rl/scripts/run_train_offline.sh) or [offline-rl/scripts/run_train_offline.ps1](./offline-rl/scripts/run_train_offline.ps1) with `OFFLINE_TRAIN_*` environment variables.
+
+The lightweight direct trainer now defaults to `cuda`, so its default behavior is aligned with a GPU machine. Use `--device cpu` only when you intentionally want local CPU validation.
 
 If your dataset stores behavior-policy log-probs in `step.info` or trajectory metadata, the GRPO baseline will use them directly for a more faithful off-policy ratio. See [offline-rl/README.md](./offline-rl/README.md) for the accepted fields.
 
@@ -207,7 +211,7 @@ The mock adapters are designed for CPU validation and repo-level testing. Real b
 
 ## Scope Boundaries
 
-- The lightweight offline algorithms are meant for CPU validation, ablation, and replay-policy experiments. They are not direct replacements for a full Qwen3-VL policy stack.
+- The lightweight offline algorithms are meant for GPU-first but still lightweight validation, ablation, and replay-policy experiments. They are not direct replacements for a full Qwen3-VL policy stack.
 - The benchmark adapters included here prioritize a shared interface and repo-level testing; real benchmark fidelity still depends on external environments.
 - The PowerShell offline-training launchers are forwarding entry points; real training still runs through WSL or another Linux-like shell environment.
 - This fork intentionally keeps the algorithm folders and file layout close to upstream so existing launch and integration patterns remain recognizable.

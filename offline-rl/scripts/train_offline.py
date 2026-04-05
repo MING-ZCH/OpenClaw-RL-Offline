@@ -18,6 +18,8 @@ import os
 import sys
 import time
 
+import torch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from offline_rl.data.trajectory_store import TrajectoryStore
@@ -45,10 +47,99 @@ def _save_checkpoint(algo, output_path: str) -> None:
         f.write(buffer.getvalue())
 
 
+def _resolve_repo_path(path_str: str) -> str:
+    if os.path.isabs(path_str):
+        return path_str
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), path_str)
+
+
+def _resolve_device(requested_device: str) -> str:
+    normalized = (requested_device or "auto").strip().lower()
+
+    if normalized == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+
+    if normalized == "cpu":
+        return "cpu"
+
+    if normalized == "cuda":
+        if not torch.cuda.is_available():
+            raise ValueError("CUDA was requested but torch.cuda.is_available() is false")
+        return "cuda"
+
+    if normalized.startswith("cuda:"):
+        if not torch.cuda.is_available():
+            raise ValueError("A specific CUDA device was requested but CUDA is unavailable")
+        index_text = normalized.split(":", 1)[1]
+        if not index_text.isdigit():
+            raise ValueError("Expected device to be one of: auto, cpu, cuda, cuda:N")
+        device_index = int(index_text)
+        if device_index >= torch.cuda.device_count():
+            raise ValueError(
+                "Requested CUDA device index %d, but only %d device(s) are visible"
+                % (device_index, torch.cuda.device_count())
+            )
+        return normalized
+
+    raise ValueError("Expected device to be one of: auto, cpu, cuda, cuda:N")
+
+
+def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
+    if args.algo == "iql":
+        return IQL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            tau=args.tau,
+            beta=args.beta,
+        )
+    if args.algo == "cql":
+        return CQL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            alpha=args.alpha,
+        )
+    if args.algo == "awac":
+        return AWAC(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            lam=args.lam,
+        )
+    if args.algo == "grpo":
+        return OffPolicyGRPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            clip_ratio=args.clip_ratio,
+            kl_coeff=args.kl_coeff,
+            n_policy_updates=args.n_policy_updates,
+        )
+    raise ValueError("Unknown algo: %s" % args.algo)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str, choices=["iql", "cql", "awac", "grpo"], default="iql")
+    parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
@@ -71,10 +162,13 @@ def main():
     parser.add_argument("--output", type=str, default=None, help="Save checkpoint path")
     args = parser.parse_args()
 
+    try:
+        resolved_device = _resolve_device(args.device)
+    except ValueError as exc:
+        parser.error(str(exc))
+
     # Resolve data path
-    data_path = args.data
-    if not os.path.isabs(data_path):
-        data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_path)
+    data_path = _resolve_repo_path(args.data)
 
     logger.info("Loading trajectories from %s", data_path)
     store = TrajectoryStore(data_path)
@@ -86,55 +180,8 @@ def main():
     loaded = buf.load_from_store()
     logger.info("Loaded %d trajectories into replay buffer", loaded)
 
-    if args.algo == "iql":
-        algo = IQL(
-            replay_buffer=buf,
-            state_dim=args.state_dim,
-            action_dim=args.action_dim,
-            hidden_dim=args.hidden_dim,
-            lr=args.lr,
-            gamma=args.gamma,
-            device="cpu",
-            tau=args.tau,
-            beta=args.beta,
-        )
-    elif args.algo == "cql":
-        algo = CQL(
-            replay_buffer=buf,
-            state_dim=args.state_dim,
-            action_dim=args.action_dim,
-            hidden_dim=args.hidden_dim,
-            lr=args.lr,
-            gamma=args.gamma,
-            device="cpu",
-            alpha=args.alpha,
-        )
-    elif args.algo == "awac":
-        algo = AWAC(
-            replay_buffer=buf,
-            state_dim=args.state_dim,
-            action_dim=args.action_dim,
-            hidden_dim=args.hidden_dim,
-            lr=args.lr,
-            gamma=args.gamma,
-            device="cpu",
-            lam=args.lam,
-        )
-    elif args.algo == "grpo":
-        algo = OffPolicyGRPO(
-            replay_buffer=buf,
-            state_dim=args.state_dim,
-            action_dim=args.action_dim,
-            hidden_dim=args.hidden_dim,
-            lr=args.lr,
-            gamma=args.gamma,
-            device="cpu",
-            clip_ratio=args.clip_ratio,
-            kl_coeff=args.kl_coeff,
-            n_policy_updates=args.n_policy_updates,
-        )
-    else:
-        raise ValueError(f"Unknown algo: {args.algo}")
+    logger.info("Resolved device: requested=%s actual=%s", args.device, resolved_device)
+    algo = _build_algorithm(args, buf, resolved_device)
 
     logger.info("Training %s for %d steps (batch_size=%d)", args.algo.upper(), args.steps, args.batch_size)
     t0 = time.time()
@@ -150,9 +197,7 @@ def main():
     logger.info("Sample Q-values: %s", q_values.tolist())
 
     if args.output:
-        output_path = args.output
-        if not os.path.isabs(output_path):
-            output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), output_path)
+        output_path = _resolve_repo_path(args.output)
         _save_checkpoint(algo, output_path)
         logger.info("Saved checkpoint to %s", output_path)
 
