@@ -41,6 +41,7 @@ flowchart LR
 - `RW-FT` (Mukherjee et al., NeurIPS 2025): reward-weighted fine-tuning; simplest offline algorithm — trajectory-level reward-weighted BC, no critic required.
 - `OREO` (Wang et al., arXiv 2412.16145): MaxEnt soft Bellman offline RL; single Q + GaussianActor; soft V via log-mean-exp over MC samples; advantage-weighted BC; validated on ALFWorld.
 - `SORL` (Li et al., arXiv 2511.20718): stabilized off-policy GRPO with clipping-triggered normalization (CTN); normalizes advantages only when IS clip fraction exceeds threshold; prevents gradient collapse in long-horizon agentic settings.
+- `ARPO` (arXiv 2505.16282): adaptive replay GRPO; per-task success buffer (FIFO, depth 8) injects a past success when a training group is all-fail; DAPO asymmetric clipping (ε_low=0.2, ε_high=0.3); no KL penalty; validated on OSWorld.
 
 ### Benchmark Adapters
 
@@ -114,6 +115,7 @@ python scripts/train_offline.py --algo crr  --data data/osworld_trajs.jsonl --st
 python scripts/train_offline.py --algo rwft --data data/osworld_trajs.jsonl --steps 300 --rwft-beta 1.0
 python scripts/train_offline.py --algo oreo --data data/osworld_trajs.jsonl --steps 500 --oreo-beta 1.0 --oreo-mc-samples 8
 python scripts/train_offline.py --algo sorl --data data/osworld_trajs.jsonl --steps 500 --sorl-clip-norm-threshold 0.2
+python scripts/train_offline.py --algo arpo --data data/osworld_trajs.jsonl --steps 500 --arpo-clip-ratio-high 0.3 --arpo-buffer-size 8
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 
 # Compare multiple algorithms side-by-side
@@ -170,6 +172,7 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `RW-FT` | Simplest reward-weighted fine-tuning for LLM agents (Mukherjee et al., NeurIPS 2025) | Trajectory-level outcome reward as softmax weight for BC loss; no critic; suitable for best-of-N dataset distillation. |
 | `OREO` | Principled soft Bellman offline RL for agentic LLM trajectories (Wang et al., arXiv 2412.16145) | Single Q + GaussianActor; V_soft = β·log_mean_exp(Q(s,aₖ)/β) over K MC samples; consistent MaxEnt entropy objective; no twin Q overhead. |
 | `SORL` | Stabilized off-policy GRPO for long-horizon agentic tasks (Li et al., arXiv 2511.20718) | Subclass of OffPolicyGRPO; CTN normalizes advantages only when IS clip fraction > threshold (default 0.2); tracks clip_fraction and ctn_normalized metrics. |
+| `ARPO` | Adaptive replay GRPO for sparse-reward agentic tasks (arXiv 2505.16282) | Per-task FIFO success buffer (depth 8); injects 1 past success when group is all-fail (std<0.05 and mean<0.2); DAPO asymmetric clip (ε_low=0.2, ε_high=0.3); no KL; OSWorld validated. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline

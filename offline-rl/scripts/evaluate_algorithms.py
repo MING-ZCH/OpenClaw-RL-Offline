@@ -6,7 +6,7 @@ Trains multiple offline RL algorithms on the same dataset for the same
 number of steps and records per-algorithm performance metrics, then
 prints a comparison table.
 
-Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl
+Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl, arpo
 
 Usage:
     python scripts/evaluate_algorithms.py --data data/trajs.jsonl --algos iql cql awac crr oreo
@@ -45,6 +45,7 @@ from offline_rl.algorithms.crr import CRR
 from offline_rl.algorithms.rw_finetuning import RWFineTuning
 from offline_rl.algorithms.oreo import OREO
 from offline_rl.algorithms.sorl import SORLOffPolicyGRPO
+from offline_rl.algorithms.arpo import ARPO
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -52,7 +53,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -66,6 +67,7 @@ _ALGO_REFS = {
     "rwft": "Mukherjee et al. NeurIPS 2025",
     "oreo": "Wang et al. arXiv 2412.16145",
     "sorl": "Li et al. arXiv 2511.20718",
+    "arpo": "arXiv 2505.16282 (dvlab-research/ARPO)",
 }
 
 
@@ -104,6 +106,11 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
         return SORLOffPolicyGRPO(
             **common, clip_ratio=0.2, kl_coeff=0.01, n_policy_updates=2,
             clip_norm_threshold=0.2,
+        )
+    if name == "arpo":
+        return ARPO(
+            **common, clip_ratio_low=0.2, clip_ratio_high=0.3,
+            n_policy_updates=2, arpo_buffer_size=8,
         )
     raise ValueError("Unknown algorithm: %s" % name)
 

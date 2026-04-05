@@ -43,6 +43,7 @@ from offline_rl.algorithms.crr import CRR
 from offline_rl.algorithms.rw_finetuning import RWFineTuning
 from offline_rl.algorithms.oreo import OREO
 from offline_rl.algorithms.sorl import SORLOffPolicyGRPO
+from offline_rl.algorithms.arpo import ARPO
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ ALGO_MAP = {
     "rwft": RWFineTuning,
     "oreo": OREO,
     "sorl": SORLOffPolicyGRPO,
+    "arpo": ARPO,
 }
 
 
@@ -252,6 +254,22 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             n_policy_updates=args.n_policy_updates,
             clip_norm_threshold=args.sorl_clip_norm_threshold,
         )
+    if args.algo == "arpo":
+        return ARPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            clip_ratio_low=args.arpo_clip_ratio_low,
+            clip_ratio_high=args.arpo_clip_ratio_high,
+            n_policy_updates=args.n_policy_updates,
+            arpo_buffer_size=args.arpo_buffer_size,
+            all_fail_std_threshold=args.arpo_all_fail_std,
+            all_fail_mean_threshold=args.arpo_all_fail_mean,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -316,7 +334,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -368,6 +386,17 @@ def main():
     # SORL specific
     parser.add_argument("--sorl-clip-norm-threshold", type=float, default=0.2,
                         help="SORL: clip fraction threshold above which advantages are normalized (CTN)")
+    # ARPO specific
+    parser.add_argument("--arpo-clip-ratio-low", type=float, default=0.2,
+                        help="ARPO lower PPO clip epsilon (default 0.2)")
+    parser.add_argument("--arpo-clip-ratio-high", type=float, default=0.3,
+                        help="ARPO upper PPO clip epsilon (DAPO asymmetric, default 0.3)")
+    parser.add_argument("--arpo-buffer-size", type=int, default=8,
+                        help="ARPO success replay buffer capacity per task (default 8)")
+    parser.add_argument("--arpo-all-fail-std", type=float, default=0.05,
+                        help="ARPO: reward std threshold for all-fail group detection (default 0.05)")
+    parser.add_argument("--arpo-all-fail-mean", type=float, default=0.2,
+                        help="ARPO: reward mean threshold for all-fail group detection (default 0.2)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

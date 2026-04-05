@@ -18,6 +18,7 @@ from .crr import CRR
 from .rw_finetuning import RWFineTuning
 from .oreo import OREO
 from .sorl import SORLOffPolicyGRPO
+from .arpo import ARPO, ARPOSuccessBuffer
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -40,4 +41,6 @@ __all__ = [
     "RWFineTuning",
     "OREO",
     "SORLOffPolicyGRPO",
+    "ARPO",
+    "ARPOSuccessBuffer",
 ]

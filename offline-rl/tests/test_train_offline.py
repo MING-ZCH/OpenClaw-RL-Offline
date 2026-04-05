@@ -75,6 +75,11 @@ def _make_args(algo: str) -> argparse.Namespace:
         oreo_beta=1.0,
         oreo_mc_samples=4,
         sorl_clip_norm_threshold=0.2,
+        arpo_clip_ratio_low=0.2,
+        arpo_clip_ratio_high=0.3,
+        arpo_buffer_size=4,
+        arpo_all_fail_std=0.05,
+        arpo_all_fail_mean=0.2,
     )
 
 
@@ -340,3 +345,57 @@ def test_oreo_soft_v_is_greater_than_arithmetic_mean_v(tmp_dir):
     v = algo._soft_v(states_d)
     assert v.shape == (4,)
     assert all(math.isfinite(x) for x in v.tolist())
+
+
+def test_build_arpo_trains_and_replay_buffer_grows(tmp_dir):
+    """ARPO builds, trains, updates its success buffer, and reports metrics."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("arpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # ARPO-specific keys must be present in every step
+    assert "replay_injected" in metrics[0].extra
+    assert "arpo_buffer_size" in metrics[0].extra
+    assert "mean_ratio" in metrics[0].extra
+    # Buffer should have grown: data has 50% success, so buffer should be non-empty
+    assert algo._arpo_success_buf is not None
+
+
+def test_arpo_replay_injection_restores_variance(tmp_dir):
+    """When all batch outcomes are zero, ARPO injects a past success."""
+    import numpy as np
+    from offline_rl.data.replay_buffer import TransitionBatch
+
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("arpo")
+    # Use a very loose threshold so injection fires easily
+    args.arpo_all_fail_std = 1.0
+    args.arpo_all_fail_mean = 1.0
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+
+    # Pre-populate the ARPO success buffer with one positive entry
+    from offline_rl.algorithms.arpo import ARPOSuccessBuffer
+    algo._arpo_success_buf._store.append(
+        ("success_obs", "success_act", 1.0, 1.0)
+    )
+    assert len(algo._arpo_success_buf) == 1
+
+    # Construct an all-fail batch
+    all_fail_rewards = np.zeros(8, dtype=np.float32)
+    batch = buf.sample_transitions(8)
+    # Override outcome rewards to all zeros
+    import dataclasses
+    batch = dataclasses.replace(batch, outcome_rewards=all_fail_rewards)
+
+    # _inject_replay must trigger because std < 1.0 and mean < 1.0
+    augmented, injected = algo._inject_replay(batch, all_fail_rewards)
+    assert injected == 1, "Expected replay injection but got 0"
+    # Slot 0 should now have the positive success entry
+    assert augmented.observation_contexts[0] == "success_obs"
+    assert augmented.actions[0] == "success_act"
+    # Remaining slots unchanged
+    assert augmented.observation_contexts[1:] == list(batch.observation_contexts[1:])
