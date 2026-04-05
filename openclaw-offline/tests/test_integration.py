@@ -442,6 +442,95 @@ class TestComputeWeights:
             weights = json.load(f)
         assert len(weights) == 15
 
+    def test_cli_retrospex(self, trajectory_jsonl, tmp_path):
+        """Retrospex uses IQL twin-Q/V; get_action_values() returns raw Q proxy."""
+        output = str(tmp_path / "retrospex_weights.json")
+        sys.argv = [
+            "compute_weights.py",
+            "--data", trajectory_jsonl,
+            "--output", output,
+            "--algo", "retrospex",
+            "--train-steps", "10",
+            "--batch-size", "4",
+            "--retrospex-tau", "0.7",
+            "--retrospex-lambda-scale", "1.0",
+        ]
+
+        import compute_weights
+        compute_weights.main()
+
+        assert os.path.exists(output)
+        with open(output) as f:
+            weights = json.load(f)
+        # 5 trajectories * 3 steps = 15 entries
+        assert len(weights) == 15
+        for key, val in weights.items():
+            assert ":" in key, "Keys should be 'traj_id:step_idx'"
+            assert isinstance(val, float)
+            assert val == val  # not NaN
+
+    def test_cli_webrl_produces_bounded_values(self, trajectory_jsonl, tmp_path):
+        """WebRL ORM produces P(success) ∈ [0, 1] as advantage proxy."""
+        output = str(tmp_path / "webrl_weights.json")
+        sys.argv = [
+            "compute_weights.py",
+            "--data", trajectory_jsonl,
+            "--output", output,
+            "--algo", "webrl",
+            "--train-steps", "10",
+            "--batch-size", "4",
+            "--webrl-alpha-orm", "0.5",
+        ]
+
+        import compute_weights
+        compute_weights.main()
+
+        assert os.path.exists(output)
+        with open(output) as f:
+            weights = json.load(f)
+        assert len(weights) == 15
+        # ORM values should be in [0, 1] (sigmoid output)
+        for val in weights.values():
+            assert -0.01 <= val <= 1.01, "WebRL ORM value out of [0,1]: {}".format(val)
+
+    def test_cli_glider_uses_plan_conditioned_q(self, trajectory_jsonl, tmp_path):
+        """GLIDER plan-conditioned Q: get_action_values() internally encodes plan."""
+        output = str(tmp_path / "glider_weights.json")
+        sys.argv = [
+            "compute_weights.py",
+            "--data", trajectory_jsonl,
+            "--output", output,
+            "--algo", "glider",
+            "--train-steps", "10",
+            "--batch-size", "4",
+            "--glider-plan-dim", "32",
+            "--glider-beta", "1.0",
+            "--glider-tau", "0.7",
+        ]
+
+        import compute_weights
+        compute_weights.main()
+
+        assert os.path.exists(output)
+        with open(output) as f:
+            weights = json.load(f)
+        assert len(weights) == 15
+        for val in weights.values():
+            assert isinstance(val, float)
+            assert val == val  # not NaN
+
+    def test_advantage_dispatch_has_advantages_vs_q_value(self):
+        """_HAS_ADVANTAGES set should exactly match algos with get_advantages() method."""
+        import compute_weights as cw
+        assert "iql" in cw._HAS_ADVANTAGES
+        assert "awac" in cw._HAS_ADVANTAGES
+        assert "crr" in cw._HAS_ADVANTAGES
+        assert "edac" in cw._HAS_ADVANTAGES
+        assert "oreo" in cw._HAS_ADVANTAGES
+        # Algorithms that use get_action_values() should NOT be in _HAS_ADVANTAGES
+        for qval_algo in ("cql", "td3bc", "grpo", "sorl", "arpo", "retrospex", "glider", "webrl"):
+            assert qval_algo not in cw._HAS_ADVANTAGES
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

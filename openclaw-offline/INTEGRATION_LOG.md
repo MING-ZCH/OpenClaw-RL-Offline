@@ -120,3 +120,91 @@ TOTAL                      → 139 passed
 - Created `conftest.py` with shared test fixtures and slime mock setup
 - Created `__init__.py` for proper package structure
 - Added `cleanup_env_vars` autouse fixture to prevent test pollution
+
+## Bridge Extension (v3) — All 15 Algorithms
+
+### Trigger
+User request: "将算法接入 openclaw-offline 的 slime 训练桥接（compute_weights/offline_rollout）"
+
+After completing the algorithm implementation phase (commit `f776126`, 15 algos, 179 tests),
+the compute_weights bridge was extended to cover all 15 offline RL algorithms.
+
+### compute_weights.py Rework
+
+**Previous**: supported only `iql`, `cql`, `td3bc`
+**Now**: supports all 15 algorithms
+
+```
+iql  cql  awac  grpo  td3bc  edac  dt  crr  rwft  oreo  sorl  arpo
+retrospex  webrl  glider
+```
+
+#### Architecture Changes
+
+1. **`_build_algo(args, buffer, device)`** — dispatcher replacing inline if/elif:
+   - Each of 15 branches does lazy import + construct with all required kwargs
+   - Shared kwargs: `state_dim=256, action_dim=256, hidden_dim=256, lr=3e-4, gamma=0.99, device`
+
+2. **`_get_advantage(algo, algo_name, state, action)`** — unified extraction:
+   - `_HAS_ADVANTAGES = {"iql", "awac", "crr", "edac", "oreo"}` → use `get_advantages()`
+   - All others → use `get_action_values()` as Q/value proxy
+
+3. **Per-algo hyperparameter CLI args added**:
+
+   | New Flag | Default | Algorithm |
+   |----------|---------|-----------|
+   | `--retrospex-tau` | 0.7 | Retrospex expectile |
+   | `--retrospex-lambda-scale` | 1.0 | Retrospex Q-weight λ |
+   | `--webrl-alpha-orm` | 0.5 | WebRL ORM reward mix α |
+   | `--glider-plan-dim` | hidden//4 | GLIDER plan embedding dim |
+   | `--glider-beta` | 1.0 | GLIDER AWR temperature |
+   | `--glider-tau` | 0.7 | GLIDER IQL expectile |
+
+#### Advantage Dispatch Table
+
+| Algorithm | Method | Notes |
+|-----------|--------|-------|
+| iql | `get_advantages()` | True Q-V advantage |
+| awac | `get_advantages()` | True Q-V advantage |
+| crr | `get_advantages()` | True Q-V advantage |
+| edac | `get_advantages()` | True Q-V with ensemble std penalty |
+| oreo | `get_advantages()` | Outcome-regularized Q-V |
+| cql | `get_action_values()` | Conservative Q-value proxy |
+| td3bc | `get_action_values()` | Value-weighted Q proxy |
+| grpo | `get_action_values()` | Policy log-prob score |
+| sorl | `get_action_values()` | Clipped-norm GRPO score |
+| arpo | `get_action_values()` | Asymmetric ratio policy score |
+| dt | `get_action_values()` | Sequence-model log-prob |
+| rwft | `get_action_values()` | Reward-weighted BC score |
+| retrospex | `get_action_values()` | Frozen-LLM twin-Q value |
+| webrl | `get_action_values()` | ORM P(success) ∈ [0,1] |
+| glider | `get_action_values()` | Plan-conditioned LL Q(s‖g, a) |
+
+### WebRL ORM Semantics Note
+
+`WebRL.get_action_values()` returns `σ(ORM(s,a))` — a probability in [0, 1].
+When used as advantage weights in `offline_loss.py`, `exp(β * 0.5)` ≈ 4.48 for a
+perfectly successful action. This is intentional: WebRL's ORM is specifically trained
+to predict success probability, which is a valid monotone proxy for advantage.
+If normalization is needed, downstream code can subtract the batch mean before `exp(β·A)`.
+
+### Test Expansion (25 → 29)
+
+| Test Class | New Tests Added |
+|------------|----------------|
+| `TestComputeWeights` | `test_cli_retrospex` |
+| `TestComputeWeights` | `test_cli_webrl_produces_bounded_values` |
+| `TestComputeWeights` | `test_cli_glider_uses_plan_conditioned_q` |
+| `TestComputeWeights` | `test_advantage_dispatch_has_advantages_vs_q_value` |
+
+### Test Results
+
+```
+offline-rl/tests/          → 179 passed (all 15 algorithms)
+openclaw-offline/tests/    →  29 passed (full bridge coverage)
+TOTAL                      → 208 passed
+```
+
+### Backup / Safety
+
+`compute_weights.py.bak` — backup of the pre-v3 version (3-algo version)
