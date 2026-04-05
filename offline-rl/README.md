@@ -51,6 +51,12 @@ flowchart LR
 - `KTO` (Ethayarajh et al., ICML 2024, arXiv 2402.01306): Kahneman-Tversky optimization; works on single transitions with binary success/failure labels; no paired preference data required; loss-averse weighting of desirable vs undesirable outcomes.
 - `REBEL` (Gao et al., NeurIPS 2024, arXiv 2404.16767): critic-free RL via pairwise reward regression; no value function; squared loss on reward differences; lightest-weight RL algorithm in the library.
 - `DigiRL` (Bai et al., arXiv 2406.11896, 2024): doubly-robust offline RL for device-control agents; BCE-trained value functions (V_step, V_instruct); doubly-robust step advantage blending MC+TD; hard-filter AWR actor update.
+- `IPO` (Azar et al., AISTATS 2024, arXiv 2310.12036): identity preference optimization; squared-error loss on log-ratio margin `((h - 1/(2β))²)` bypasses the Bradley-Terry model assumption; same pairing mechanism as DPO.
+- `CPO` (Xu et al., ICML 2024, arXiv 2401.08417): contrastive preference optimization; DPO loss plus behavior cloning regularization on winners `L = L_DPO + λ_BC · L_BC`; dual objective prevents winning-response degradation.
+- `SimPO` (Meng et al., NeurIPS 2024, arXiv 2405.14734): simple preference optimization; reference-free — no reference model required, 50% less memory; uses target margin γ in `h = β·(log_π_w − log_π_l) − γ`.
+- `DMPO` (Shi et al., EMNLP 2024, arXiv 2406.14868): direct multi-turn preference optimization; length-normalized DPO for multi-turn agent trajectories; applies `weight = 1/len^p` normalization to compensate for trajectory length bias.
+- `ETO` (Song et al., ACL 2024, arXiv 2403.02502): exploration-based trajectory optimization; exploration-weighted DPO that upweights near-miss failures via `explore_weight = exp(α · r_loser)`; normalized by mean for gradient stability.
+- `VEM` (Song et al., Microsoft 2025, arXiv 2502.18906): value environment model; two-stage training — MLP value model trained on detached encoder outputs, then AWR policy loss with encoder gradients; three optimizer groups (encoder, VEM, policy).
 
 ### Benchmark Adapters
 
@@ -134,6 +140,12 @@ python scripts/train_offline.py --algo dpo --data data/osworld_trajs.jsonl --ste
 python scripts/train_offline.py --algo kto --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo rebel --data data/osworld_trajs.jsonl --steps 500 --rebel-eta 1.0
 python scripts/train_offline.py --algo digirl --data data/osworld_trajs.jsonl --steps 500 --digirl-lam 0.5 --digirl-adv-threshold 0.1
+python scripts/train_offline.py --algo ipo --data data/osworld_trajs.jsonl --steps 500 --ipo-beta 0.1
+python scripts/train_offline.py --algo cpo --data data/osworld_trajs.jsonl --steps 500 --cpo-beta 0.1 --cpo-lambda-bc 1.0
+python scripts/train_offline.py --algo simpo --data data/osworld_trajs.jsonl --steps 500 --simpo-beta 2.0 --simpo-gamma 0.5
+python scripts/train_offline.py --algo dmpo --data data/osworld_trajs.jsonl --steps 500 --dmpo-beta 0.1 --dmpo-length-power 0.5
+python scripts/train_offline.py --algo eto --data data/osworld_trajs.jsonl --steps 500 --eto-beta 0.1 --eto-explore-alpha 1.0
+python scripts/train_offline.py --algo vem --data data/osworld_trajs.jsonl --steps 500 --vem-beta 1.0 --vem-alpha-awr 1.0
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 
 # Compare multiple algorithms side-by-side
@@ -200,6 +212,12 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `KTO` | Kahneman-Tversky optimization for binary feedback (Ethayarajh et al. ICML 2024) | Works with single transitions + binary labels; no preference pairs needed; loss-averse weighting. |
 | `REBEL` | Critic-free pairwise reward regression (Gao et al. NeurIPS 2024) | No value function; lightest-weight RL; squared loss on reward differences; only needs policy + rewards. |
 | `DigiRL` | Doubly-robust offline RL for device-control agents (Bai et al. 2024) | BCE value functions; doubly-robust MC+TD advantage; hard-filter AWR; per-step success probability output. |
+| `IPO` | Identity preference optimization bypassing BT model (Azar et al. AISTATS 2024) | Squared-error loss `((h - 1/(2β))²)`; same pairing as DPO; more robust to label noise. |
+| `CPO` | Contrastive preference optimization with BC regularization (Xu et al. ICML 2024) | DPO + λ·BC on winners; prevents winning-response quality degradation. |
+| `SimPO` | Reference-free preference optimization (Meng et al. NeurIPS 2024) | No reference model; 50% less memory; target margin γ; simplest preference algorithm. |
+| `DMPO` | Multi-turn DPO with length normalization (Shi et al. EMNLP 2024) | Length-normalized DPO; weight=1/len^p; compensates trajectory length bias for agents. |
+| `ETO` | Exploration-weighted DPO for agent tasks (Song et al. ACL 2024) | Upweights near-miss failures via exp(α·r_loser); mean-normalized for stability. |
+| `VEM` | Value environment model + AWR policy (Song et al. Microsoft 2025) | Two-stage: MLP value model on detached features, then AWR policy; 3 optimizer groups. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline

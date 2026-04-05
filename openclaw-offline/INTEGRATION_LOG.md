@@ -259,3 +259,56 @@ TOTAL                      → 208 passed
 ### Backup / Safety
 
 `compute_weights.py.bak` — backup of the pre-v3 version (3-algo version)
+
+## Bridge Extension (v5) — 6 More Algorithms (21 → 27)
+
+### Trigger
+User request: add 6 benchmark-driven offline RL algorithms from recent AgentBench/WebArena/OSWorld literature.
+
+After completing the 21-algo library (commit `e6a36ae`), 6 new algorithms were implemented
+from preference optimization and agent RL literature.
+
+### New Algorithms
+
+| Algorithm | Paper | Venue | Key Feature |
+|-----------|-------|-------|-------------|
+| IPO | arXiv 2310.12036 | AISTATS 2024 | Squared-error preference loss bypassing BT model |
+| CPO | arXiv 2401.08417 | ICML 2024 | DPO + behavior cloning on winners |
+| SimPO | arXiv 2405.14734 | NeurIPS 2024 | Reference-free, 50% less memory |
+| DMPO | arXiv 2406.14868 | EMNLP 2024 | Length-normalized multi-turn DPO |
+| ETO | arXiv 2403.02502 | ACL 2024 | Exploration-weighted DPO, near-miss upweighting |
+| VEM | arXiv 2502.18906 | Microsoft 2025 | Value environment model + AWR policy |
+
+### compute_weights.py Updates
+
+**Previous**: 21 algorithms
+**Now**: 27 algorithms
+
+1. **`_build_algo()`**: Added 6 new branches (ipo, cpo, simpo, dmpo, eto, vem).
+2. **Advantage dispatch**:
+   - IPO/CPO/DMPO/ETO → `get_action_values()` as log-prob preference proxy
+   - SimPO → `get_action_values()` returning β-scaled log-prob (no reference model)
+   - VEM → `get_action_values()` returning VEM-predicted value
+3. **New CLI args**:
+
+   | New Flag | Default | Algorithm |
+   |----------|---------|-----------|
+   | `--ipo-beta` | 0.1 | IPO regularization strength |
+   | `--cpo-beta` | 0.1 | CPO preference strength |
+   | `--cpo-lambda-bc` | 1.0 | CPO BC regularization weight |
+   | `--simpo-beta` | 2.0 | SimPO scaling factor |
+   | `--simpo-gamma` | 0.5 | SimPO target margin |
+   | `--dmpo-beta` | 0.1 | DMPO preference strength |
+   | `--dmpo-length-power` | 0.5 | DMPO length normalization exponent |
+   | `--eto-beta` | 0.1 | ETO preference strength |
+   | `--eto-explore-alpha` | 1.0 | ETO exploration weight scale |
+   | `--vem-beta` | 1.0 | VEM AWR temperature |
+   | `--vem-alpha-awr` | 1.0 | VEM AWR advantage scale |
+
+### Test Results
+- **offline-rl**: 191/191 passed (185 existing + 6 new)
+- **openclaw-offline**: 29/29 passed
+- **Total**: 220/220
+
+### Commit
+`d211087` — feat: add 6 benchmark-driven offline RL algorithms (IPO, CPO, SimPO, DMPO, ETO, VEM)

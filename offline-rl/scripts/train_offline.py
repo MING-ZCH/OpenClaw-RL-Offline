@@ -2,7 +2,9 @@
 """
 Train offline RL algorithms on pre-collected trajectories.
 
-Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT
+Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO,
+                     Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, IPO, CPO, SimPO, DMPO, ETO,
+                     KTO, REBEL, DigiRL, VEM
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500

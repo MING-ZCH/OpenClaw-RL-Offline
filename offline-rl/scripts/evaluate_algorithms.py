@@ -6,7 +6,9 @@ Trains multiple offline RL algorithms on the same dataset for the same
 number of steps and records per-algorithm performance metrics, then
 prints a comparison table.
 
-Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl, arpo
+Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl, arpo,
+                     retrospex, webrl, glider, archer, bcq, dpo, ipo, cpo, simpo, dmpo, eto,
+                     kto, rebel, digirl, vem
 
 Usage:
     python scripts/evaluate_algorithms.py --data data/trajs.jsonl --algos iql cql awac crr oreo
