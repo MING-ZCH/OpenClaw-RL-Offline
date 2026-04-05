@@ -49,6 +49,12 @@ from offline_rl.algorithms.arpo import ARPO
 from offline_rl.algorithms.retrospex import Retrospex
 from offline_rl.algorithms.webrl import WebRL
 from offline_rl.algorithms.glider import GLIDER
+from offline_rl.algorithms.archer import ArCHer
+from offline_rl.algorithms.bcq import BCQ
+from offline_rl.algorithms.dpo import DPO
+from offline_rl.algorithms.kto import KTO
+from offline_rl.algorithms.rebel import REBEL
+from offline_rl.algorithms.digirl import DigiRL
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -56,7 +62,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "kto", "rebel", "digirl"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -74,6 +80,12 @@ _ALGO_REFS = {
     "retrospex": "Xiang et al. EMNLP 2024 arXiv 2505.11807",
     "webrl": "Qi et al. ICLR 2025 arXiv 2411.02337",
     "glider": "Hu et al. ICML 2025 arXiv 2505.19761",
+    "archer": "Zhou et al. ICML 2024 arXiv 2402.19446",
+    "bcq": "Fujimoto et al. ICML 2019 arXiv 1812.02900",
+    "dpo": "Rafailov et al. NeurIPS 2023 arXiv 2305.18290",
+    "kto": "Ethayarajh et al. 2024 arXiv 2402.01306",
+    "rebel": "Gao et al. NeurIPS 2024 arXiv 2404.16767",
+    "digirl": "Bai et al. 2024 arXiv 2406.11896",
 }
 
 
@@ -127,6 +139,18 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
         )
     if name == "glider":
         return GLIDER(**common, plan_dim=None, beta=1.0, tau=0.7)
+    if name == "archer":
+        return ArCHer(**common, tau=0.9, beta=3.0)
+    if name == "bcq":
+        return BCQ(**common, tau=0.7, bc_weight=1.0)
+    if name == "dpo":
+        return DPO(**common, beta=0.1)
+    if name == "kto":
+        return KTO(**common)
+    if name == "rebel":
+        return REBEL(**common, eta=1.0, ref_update_interval=1)
+    if name == "digirl":
+        return DigiRL(**common, lam=0.5, adv_threshold=0.1)
     raise ValueError("Unknown algorithm: %s" % name)
 
 

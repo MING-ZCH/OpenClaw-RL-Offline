@@ -22,6 +22,12 @@ from .arpo import ARPO, ARPOSuccessBuffer
 from .retrospex import Retrospex
 from .webrl import WebRL, OutcomeSupervisedRewardModel
 from .glider import GLIDER, PlanEncoder
+from .archer import ArCHer
+from .kto import KTO
+from .dpo import DPO
+from .bcq import BCQ, BehaviorCloningNetwork
+from .rebel import REBEL
+from .digirl import DigiRL, StepValueNet, InstructValueNet
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -51,4 +57,13 @@ __all__ = [
     "OutcomeSupervisedRewardModel",
     "GLIDER",
     "PlanEncoder",
+    "ArCHer",
+    "KTO",
+    "DPO",
+    "BCQ",
+    "BehaviorCloningNetwork",
+    "REBEL",
+    "DigiRL",
+    "StepValueNet",
+    "InstructValueNet",
 ]

@@ -1,14 +1,15 @@
 """
 Pre-compute advantage weights from offline RL critic for LLM fine-tuning.
 
-This script trains one of 15 offline RL critics on trajectory data, then
+This script trains one of 21 offline RL critics on trajectory data, then
 exports per-(trajectory, step) advantage/value weights as a JSON file for use
 by the custom ``offline_loss.py`` function during slime training.
 
-All 15 algorithms supported:
+All 21 algorithms supported:
     iql     cql     awac    grpo    td3bc   edac
     dt      crr     rwft    oreo    sorl    arpo
     retrospex  webrl  glider
+    archer  bcq     dpo     kto     rebel   digirl
 
 Usage:
     python compute_weights.py --algo iql --data trajectories.jsonl --output weights.json
@@ -21,12 +22,14 @@ Usage:
 Output JSON maps "{trajectory_id}:{step_idx}" → float advantage/value.
 
 Advantage dispatch:
-  - Algorithms with ``get_advantages()`` (IQL, AWAC, CRR, EDAC, OREO):
+  - Algorithms with ``get_advantages()`` (IQL, CRR, EDAC, OREO, ArCHer, BCQ):
         A(s,a) = Q(s,a) - V(s)   (true IQL advantage)
   - All other algorithms use ``get_action_values()`` as Q/value proxy:
-        GRPO, SORL, ARPO, DT, RW-FT  → log-prob or policy score proxy
-        CQL, TD3+BC, Retrospex, GLIDER → Q-value
-        WebRL                          → ORM probability P(success) ∈ [0, 1]
+        AWAC, GRPO, SORL, ARPO, DT, RW-FT → log-prob or policy score proxy
+        CQL, TD3+BC, Retrospex, GLIDER    → Q-value
+        WebRL                              → ORM probability P(success) ∈ [0, 1]
+        DPO, KTO, REBEL                    → policy log-prob proxy
+        DigiRL                             → V_step success probability ∈ [0, 1]
 """
 
 import argparse
@@ -47,7 +50,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 logger = logging.getLogger(__name__)
 
 # Algorithms that have a true get_advantages() method (Q - V)
-_HAS_ADVANTAGES = {"iql", "awac", "crr", "edac", "oreo"}
+# NOTE: AWAC only has get_action_values(), NOT get_advantages()
+_HAS_ADVANTAGES = {"iql", "crr", "edac", "oreo", "archer", "bcq"}
 
 
 def _build_algo(args, buffer, device):
@@ -146,6 +150,39 @@ def _build_algo(args, buffer, device):
             tau=args.glider_tau,
         )
 
+    if args.algo == "archer":
+        from offline_rl.algorithms.archer import ArCHer
+        return ArCHer(**common, tau=0.9, beta=args.beta, target_update_rate=0.005)
+
+    if args.algo == "kto":
+        from offline_rl.algorithms.kto import KTO
+        return KTO(**common, beta=args.kto_beta, success_threshold=args.kto_threshold)
+
+    if args.algo == "dpo":
+        from offline_rl.algorithms.dpo import DPO
+        return DPO(**common, beta=args.dpo_beta, pairing_threshold=args.dpo_threshold)
+
+    if args.algo == "bcq":
+        from offline_rl.algorithms.bcq import BCQ
+        return BCQ(**common, tau=0.7, target_update_rate=0.005, bc_weight=args.bcq_bc_weight)
+
+    if args.algo == "rebel":
+        from offline_rl.algorithms.rebel import REBEL
+        return REBEL(
+            **common,
+            eta=args.rebel_eta,
+            ref_update_interval=args.rebel_ref_interval,
+        )
+
+    if args.algo == "digirl":
+        from offline_rl.algorithms.digirl import DigiRL
+        return DigiRL(
+            **common,
+            lam=args.digirl_lam,
+            adv_threshold=args.digirl_adv_threshold,
+            max_grad_norm=args.digirl_max_grad_norm,
+        )
+
     raise ValueError("Unknown algorithm: %s" % args.algo)
 
 
@@ -172,6 +209,7 @@ def main():
             "iql", "cql", "awac", "grpo", "td3bc", "edac",
             "dt", "crr", "rwft", "oreo", "sorl", "arpo",
             "retrospex", "webrl", "glider",
+            "archer", "kto", "dpo", "bcq", "rebel", "digirl",
         ],
         default="iql",
         help="Offline RL algorithm to train the critic (default: iql)",
@@ -201,6 +239,31 @@ def main():
                         help="GLIDER AWR advantage temperature")
     parser.add_argument("--glider-tau", type=float, default=0.7,
                         help="GLIDER IQL expectile parameter")
+    # KTO-specific
+    parser.add_argument("--kto-beta", type=float, default=0.1,
+                        help="KTO temperature beta (default 0.1)")
+    parser.add_argument("--kto-threshold", type=float, default=0.5,
+                        help="KTO success threshold for binary label (default 0.5)")
+    # DPO-specific
+    parser.add_argument("--dpo-beta", type=float, default=0.1,
+                        help="DPO temperature beta (default 0.1)")
+    parser.add_argument("--dpo-threshold", type=float, default=0.5,
+                        help="DPO pairing threshold for winner/loser split (default 0.5)")
+    # BCQ-specific
+    parser.add_argument("--bcq-bc-weight", type=float, default=1.0,
+                        help="BCQ behavior cloning loss weight (default 1.0)")
+    # REBEL-specific
+    parser.add_argument("--rebel-eta", type=float, default=1.0,
+                        help="REBEL scale parameter for log-ratio term (default 1.0)")
+    parser.add_argument("--rebel-ref-interval", type=int, default=1,
+                        help="REBEL reference policy snapshot interval (default 1)")
+    # DigiRL-specific
+    parser.add_argument("--digirl-lam", type=float, default=0.5,
+                        help="DigiRL MC vs TD mixing weight lambda (default 0.5)")
+    parser.add_argument("--digirl-adv-threshold", type=float, default=0.1,
+                        help="DigiRL hard-filter advantage threshold (default 0.1)")
+    parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
+                        help="DigiRL gradient clipping max norm (default 1.0)")
     args = parser.parse_args()
 
     # Load data

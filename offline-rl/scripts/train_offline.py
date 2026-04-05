@@ -47,6 +47,12 @@ from offline_rl.algorithms.arpo import ARPO
 from offline_rl.algorithms.retrospex import Retrospex
 from offline_rl.algorithms.webrl import WebRL
 from offline_rl.algorithms.glider import GLIDER
+from offline_rl.algorithms.archer import ArCHer
+from offline_rl.algorithms.bcq import BCQ
+from offline_rl.algorithms.dpo import DPO
+from offline_rl.algorithms.kto import KTO
+from offline_rl.algorithms.rebel import REBEL
+from offline_rl.algorithms.digirl import DigiRL
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -68,6 +74,12 @@ ALGO_MAP = {
     "retrospex": Retrospex,
     "webrl": WebRL,
     "glider": GLIDER,
+    "archer": ArCHer,
+    "bcq": BCQ,
+    "dpo": DPO,
+    "kto": KTO,
+    "rebel": REBEL,
+    "digirl": DigiRL,
 }
 
 
@@ -316,6 +328,77 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             beta=args.glider_beta,
             tau=args.glider_tau,
         )
+    if args.algo == "archer":
+        return ArCHer(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            tau=args.archer_tau,
+            beta=args.archer_beta,
+            actor_lr=args.archer_actor_lr,
+        )
+    if args.algo == "bcq":
+        return BCQ(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            tau=args.bcq_tau,
+            bc_weight=args.bcq_bc_weight,
+        )
+    if args.algo == "dpo":
+        return DPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.dpo_beta,
+        )
+    if args.algo == "kto":
+        return KTO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+        )
+    if args.algo == "rebel":
+        return REBEL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            eta=args.rebel_eta,
+            ref_update_interval=args.rebel_ref_interval,
+        )
+    if args.algo == "digirl":
+        return DigiRL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            lam=args.digirl_lam,
+            adv_threshold=args.digirl_adv_threshold,
+            max_grad_norm=args.digirl_max_grad_norm,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -380,7 +463,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "kto", "rebel", "digirl"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -460,6 +543,33 @@ def main():
                         help="GLIDER AWR temperature for high/low level advantage weighting (default 1.0)")
     parser.add_argument("--glider-tau", type=float, default=0.7,
                         help="GLIDER IQL expectile parameter for V-function training (default 0.7)")
+    # ArCHer specific
+    parser.add_argument("--archer-tau", type=float, default=0.9,
+                        help="ArCHer IQL expectile (higher pessimism than IQL, default 0.9)")
+    parser.add_argument("--archer-beta", type=float, default=3.0,
+                        help="ArCHer AWR advantage temperature (default 3.0)")
+    parser.add_argument("--archer-actor-lr", type=float, default=None,
+                        help="ArCHer actor learning rate (defaults to --lr)")
+    # BCQ specific
+    parser.add_argument("--bcq-tau", type=float, default=0.7,
+                        help="BCQ IQL expectile (default 0.7)")
+    parser.add_argument("--bcq-bc-weight", type=float, default=1.0,
+                        help="BCQ behavior-cloning regularization weight (default 1.0)")
+    # DPO specific
+    parser.add_argument("--dpo-beta", type=float, default=0.1,
+                        help="DPO temperature parameter beta (default 0.1)")
+    # REBEL specific
+    parser.add_argument("--rebel-eta", type=float, default=1.0,
+                        help="REBEL log-ratio scale parameter eta (default 1.0)")
+    parser.add_argument("--rebel-ref-interval", type=int, default=1,
+                        help="REBEL reference policy snapshot interval (default 1)")
+    # DigiRL specific
+    parser.add_argument("--digirl-lam", type=float, default=0.5,
+                        help="DigiRL doubly-robust mixing weight lambda (0=TD, 1=MC, default 0.5)")
+    parser.add_argument("--digirl-adv-threshold", type=float, default=0.1,
+                        help="DigiRL hard-filter threshold for AWR (default 0.1)")
+    parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
+                        help="DigiRL gradient clipping max norm (default 1.0)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

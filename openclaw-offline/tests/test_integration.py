@@ -523,12 +523,15 @@ class TestComputeWeights:
         """_HAS_ADVANTAGES set should exactly match algos with get_advantages() method."""
         import compute_weights as cw
         assert "iql" in cw._HAS_ADVANTAGES
-        assert "awac" in cw._HAS_ADVANTAGES
         assert "crr" in cw._HAS_ADVANTAGES
         assert "edac" in cw._HAS_ADVANTAGES
         assert "oreo" in cw._HAS_ADVANTAGES
+        assert "archer" in cw._HAS_ADVANTAGES
+        assert "bcq" in cw._HAS_ADVANTAGES
         # Algorithms that use get_action_values() should NOT be in _HAS_ADVANTAGES
-        for qval_algo in ("cql", "td3bc", "grpo", "sorl", "arpo", "retrospex", "glider", "webrl"):
+        # NOTE: AWAC only has get_action_values(), NOT get_advantages()
+        for qval_algo in ("cql", "td3bc", "grpo", "sorl", "arpo", "retrospex",
+                          "glider", "webrl", "awac", "dpo", "kto", "rebel", "digirl"):
             assert qval_algo not in cw._HAS_ADVANTAGES
 
 

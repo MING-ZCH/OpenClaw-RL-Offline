@@ -90,6 +90,23 @@ def _make_args(algo: str) -> argparse.Namespace:
         glider_plan_dim=16,
         glider_beta=1.0,
         glider_tau=0.7,
+        # ArCHer
+        archer_tau=0.9,
+        archer_beta=3.0,
+        archer_actor_lr=None,
+        # BCQ
+        bcq_tau=0.7,
+        bcq_bc_weight=1.0,
+        # DPO
+        dpo_beta=0.1,
+        # KTO (uses defaults, no specific CLI args)
+        # REBEL
+        rebel_eta=1.0,
+        rebel_ref_interval=1,
+        # DigiRL
+        digirl_lam=0.5,
+        digirl_adv_threshold=0.1,
+        digirl_max_grad_norm=1.0,
     )
 
 
@@ -549,3 +566,130 @@ def test_glider_plan_embedding_shapes(tmp_dir):
     # HL value network: get Q-values conditioned on plans
     q_vals = algo.get_action_values(["s1", "s2"], ["a1", "a2"])
     assert q_vals.shape == (2,)
+
+
+# ================== ArCHer tests ==========================================
+
+def test_build_archer_trains_and_returns_q_values(tmp_dir):
+    """ArCHer builds, trains hierarchical IQL+AWR, returns Q-values and advantages."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("archer")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Extra keys: critic and actor losses
+    assert "q_loss" in metrics[0].extra
+    assert "v_loss" in metrics[0].extra
+    assert "actor_loss" in metrics[0].extra
+    # Q-values
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    # Advantages (Q - V)
+    adv = algo.get_advantages(["obs A", "obs B"], ["act A", "act B"])
+    assert adv.shape == (2,)
+    assert all(math.isfinite(v) for v in adv.tolist())
+
+
+# ================== BCQ tests =============================================
+
+def test_build_bcq_trains_and_returns_q_values(tmp_dir):
+    """BCQ builds, trains batch-constrained Q, returns Q-values and advantages."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("bcq")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Q-values
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    # Advantages (Q - V)
+    adv = algo.get_advantages(["obs A", "obs B"], ["act A", "act B"])
+    assert adv.shape == (2,)
+    assert all(math.isfinite(v) for v in adv.tolist())
+    # BC loss present
+    assert "bc_loss" in metrics[0].extra
+
+
+# ================== DPO tests =============================================
+
+def test_build_dpo_trains_with_preference_pairs(tmp_dir):
+    """DPO builds, trains via intra-batch pairwise preference, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("dpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Q-values (log-prob proxy)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== KTO tests =============================================
+
+def test_build_kto_trains_with_binary_labels(tmp_dir):
+    """KTO builds, trains with binary desirable/undesirable labels, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("kto")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Q-values (log-prob proxy)
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== REBEL tests ===========================================
+
+def test_build_rebel_trains_pairwise_regression(tmp_dir):
+    """REBEL builds, trains pairwise reward regression, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("rebel")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # rebel_loss and ref_updated keys
+    assert "rebel_loss" in metrics[0].extra
+    # Q-values (log-prob proxy from parent GRPO)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== DigiRL tests ==========================================
+
+def test_build_digirl_trains_with_dr_advantage(tmp_dir):
+    """DigiRL builds, trains BCE values + hard-filter AWR, returns V_step Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("digirl")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # DigiRL-specific extra keys
+    assert "v_step_loss" in metrics[0].extra
+    assert "v_instruct_loss" in metrics[0].extra
+    assert "actor_loss" in metrics[0].extra
+    # Q-values (V_step success probability proxy)
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    # V_step returns sigmoid ∈ (0, 1)
+    assert all(0.0 <= v <= 1.0 for v in q_vals.tolist())
