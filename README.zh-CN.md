@@ -23,6 +23,7 @@ flowchart LR
 |---|---|---|
 | `offline-rl` 数据层 | 完整可用 | 包含 `TrajectoryStore`、`ReplayBuffer`、优先级采样、slime 兼容数据源。 |
 | `IQL` / `CQL` / `AWAC` | 真实实现 | 都有可运行训练循环、指标输出和 CPU 测试。 |
+| `TD3+BC` | 真实实现 | Fujimoto & Gu NeurIPS 2021 算法；确定性 actor + BC 正则化；支持延迟 actor 更新。 |
 | `Off-Policy GRPO` | 真实实现 | 在数据里提供行为策略 log-prob 时，会直接使用这些离线概率；旧数据则回退到 ref-policy 近似。 |
 | `openclaw-offline` | 真实 bridge | 会把离线轨迹重放回原始 slime 训练接口，而不是单独做一个玩具 trainer。 |
 | 多 benchmark 采集包装 | 已实现 | OSWorld、AndroidWorld、WebArena、AlfWorld 都有 mock 适配与脚本。 |
@@ -98,3 +99,52 @@ bash run_qwen35_4b_alfworld_offline_rl.sh
 ## 致谢
 
 OpenClaw-RL-Offline 构建在 Gen-Verse 的 OpenClaw-RL 之上。这个分支重点强化的是 offline 数据、回放训练与可发布性，而不是重做 upstream 的方法组织。
+
+## 硬件要求
+
+| 使用场景 | CPU | 内存 | GPU / 显存 | 说明 |
+|---|---|---|---|---|
+| CPU 验证（数据、适配器、算法） | 4 核及以上 | 8 GB | 不需要 | 所有 offline-rl 测试在纯 CPU 机器上通过。 |
+| 轻量 offline baseline 训练（GPU 路径） | 8 核及以上 | 16 GB | CUDA GPU 6 GB+ 显存 | `train_offline.py` 默认 `--device cuda`。 |
+| 完整 LLM 离线微调 | 16 核及以上 | 64 GB+ | 8× A100 80 GB（推荐） | 依赖 upstream slime 和 Megatron runtime。 |
+
+如需在纯 CPU 机器上运行，所有训练入口都支持显式传入 `--device cpu`。
+
+## 安装说明
+
+### 环境依赖
+
+- Python 3.7 或以上（推荐 3.9+）
+- PyTorch 1.12+（CPU 构建可用于验证；GPU 训练需要 CUDA 构建）
+- Git
+
+### 最快路径：只安装 offline-rl 包
+
+```bash
+git clone https://github.com/MING-ZCH/OpenClaw-RL-Offline.git
+cd OpenClaw-RL-Offline/offline-rl
+
+python -m venv .venv
+source .venv/bin/activate       # Linux / macOS
+# .venv\Scripts\activate        # Windows PowerShell
+
+pip install -e .
+python -m pytest tests -v       # 纯 CPU 机器上所有测试应全部通过
+```
+
+### GPU 训练环境
+
+```bash
+# 先安装带 CUDA 支持的 PyTorch
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# 再安装 offline-rl
+pip install -e offline-rl/
+
+# 验证 CUDA 是否可见
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### 完整 LLM 大规模训练（slime + Megatron）
+
+详见 [slime/README.md](./slime/README.md)。完整训练还需要 Linux 风格环境、Megatron-LM 以及 Qwen3-VL 等模型权重。

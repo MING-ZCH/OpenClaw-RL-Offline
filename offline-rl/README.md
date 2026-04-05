@@ -100,6 +100,7 @@ Or on Windows PowerShell:
 python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
+python scripts/train_offline.py --algo td3bc --data data/osworld_trajs.jsonl --steps 500 --td3bc-alpha 2.5
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 ```
 
@@ -146,6 +147,7 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `IQL` | Conservative offline policy extraction and advantage weighting | Uses twin Q + V with lightweight text encoders. |
 | `CQL` | Stronger out-of-distribution control | Uses a lightweight conservative regularizer over sampled action embeddings. |
 | `AWAC` | Offline-to-online style actor updates | Good when you want explicit actor learning rather than pure value extraction. |
+| `TD3+BC` | Minimalist BC-regularized policy learning (Fujimoto & Gu, NeurIPS 2021) | Twin Q-networks + deterministic actor; policy loss = −λQ + BC; λ adapts to Q magnitude. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline

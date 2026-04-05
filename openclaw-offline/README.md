@@ -35,7 +35,15 @@ python compute_weights.py \
   --beta 3.0
 ```
 
+Supported critic algorithms: `iql` (default), `cql`, `td3bc`.
+
+- `iql`: expectile regression; returns `Q(s,a) - V(s)` as advantages.
+- `cql`: conservative Q-learning; returns Q-values as advantage proxy.
+- `td3bc`: TD3 with BC regularization (Fujimoto & Gu, NeurIPS 2021); returns Q1-values as advantage proxy.
+
 If `OFFLINE_WEIGHT_PATH` is not provided at launch time, `offline_loss.py` falls back to reward/outcome-based proxy weights. That path is useful for smoke tests, but critic-derived weights are the recommended route when you want a closer offline-RL signal.
+
+Note: `compute_weights.py` now defaults to `--device cuda` to match the GPU-first convention of the training entry points. Pass `--device cpu` on CPU-only machines.
 
 ### 3. Launch offline fine-tuning
 
@@ -71,7 +79,7 @@ The PowerShell entry points prefer WSL and then fall back to Git Bash. They are 
 |---|---|
 | `offline_rollout.py` | Replays trajectory data into slime rollout output |
 | `offline_loss.py` | Optional advantage-weighted loss for offline policy extraction |
-| `compute_weights.py` | Trains small offline critics and exports advantage weights |
+| `compute_weights.py` | Trains small offline critics (IQL, CQL, or TD3+BC) and exports advantage weights |
 | `run_qwen35_4b_offline_rl.{sh,ps1}` | Generic offline training launcher |
 | `run_qwen35_4b_{osworld,androidworld,webarena,alfworld}_offline_rl.{sh,ps1}` | Thin benchmark-specific wrappers |
 

@@ -48,6 +48,7 @@ flowchart LR
 |---|---|---|
 | `offline-rl` data layer | Real | `TrajectoryStore`, `ReplayBuffer`, prioritized sampling, and slime-compatible replay data source are implemented and tested. |
 | `IQL`, `CQL`, `AWAC` | Real lightweight baselines | These are functional offline RL algorithms built around small text encoders for CPU validation and research iteration. |
+| `TD3+BC` | Real lightweight baseline | TD3 with behavior cloning regularization (Fujimoto & Gu, NeurIPS 2021); deterministic actor; BC + normalized Q loss. |
 | `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
 | `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
 | Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
@@ -138,6 +139,7 @@ cd offline-rl
 python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
+python scripts/train_offline.py --algo td3bc --data data/osworld_trajs.jsonl --steps 500 --td3bc-alpha 2.5
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 ```
 
@@ -219,3 +221,67 @@ The mock adapters are designed for CPU validation and repo-level testing. Real b
 ## Acknowledgement
 
 OpenClaw-RL-Offline is built on top of the original OpenClaw-RL project from Gen-Verse. This fork focuses on making offline RL and benchmark replay a first-class, easier-to-publish part of the repository without rewriting the upstream method organization.
+
+## Hardware Requirements
+
+| Use case | CPU | RAM | GPU / VRAM | Notes |
+|---|---|---|---|---|
+| CPU validation (data, adapters, algorithms) | Any modern 4-core | 8 GB | Not required | All offline-rl tests pass on a CPU-only machine. |
+| Lightweight offline baseline training (GPU path) | Any modern 8-core | 16 GB | CUDA GPU, 6 GB+ VRAM | `train_offline.py` default is `--device cuda`. |
+| Full LLM offline fine-tuning | 16-core+ | 64 GB+ | 8× A100 80 GB (recommended) | Depends on upstream slime and Megatron runtime. |
+
+For CPU-only development, pass `--device cpu` explicitly to all training entry points.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.7 or later (3.9+ recommended for full upstream compatibility)
+- PyTorch 1.12+ (CPU build sufficient for validation; CUDA build required for GPU training)
+- Git
+
+### Quickest path: offline-rl package only
+
+```bash
+git clone https://github.com/MING-ZCH/OpenClaw-RL-Offline.git
+cd OpenClaw-RL-Offline/offline-rl
+
+python -m venv .venv
+source .venv/bin/activate       # Linux / macOS
+# .venv\Scripts\activate       # Windows PowerShell
+
+pip install -e .
+python -m pytest tests -v       # All tests should pass on CPU
+```
+
+### Full offline workflow (offline-rl + openclaw-offline bridge)
+
+```bash
+# Install offline-rl package
+pip install -e offline-rl/
+
+# The openclaw-offline bridge uses the same Python environment.
+# No separate install needed; just make sure offline-rl is on PYTHONPATH
+# when running openclaw-offline scripts.
+```
+
+### GPU training setup
+
+```bash
+# Install PyTorch with CUDA support first:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Then install offline-rl:
+pip install -e offline-rl/
+
+# Verify CUDA is visible:
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### Full upstream LLM training (slime + Megatron)
+
+See [slime/README.md](./slime/README.md) for detailed multi-GPU setup instructions. Full training requires:
+
+- A Linux-like environment (native Linux or WSL2 on Windows)
+- Megatron-LM installed and on `PYTHONPATH`
+- Model checkpoints for Qwen3-VL or equivalent

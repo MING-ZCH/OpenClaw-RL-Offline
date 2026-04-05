@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """
-Train offline RL algorithms (IQL/CQL/AWAC/GRPO) on pre-collected trajectories.
+Train offline RL algorithms (IQL/CQL/AWAC/GRPO/TD3BC) on pre-collected trajectories.
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500
     python scripts/train_offline.py --data data/trajectories.jsonl --algo cql --alpha 2.0
     python scripts/train_offline.py --data data/trajectories.jsonl --algo awac --lam 0.5
     python scripts/train_offline.py --data data/trajectories.jsonl --algo grpo --n-policy-updates 2
+    python scripts/train_offline.py --data data/trajectories.jsonl --algo td3bc --td3bc-alpha 2.5
 """
 
 from __future__ import annotations
@@ -28,12 +29,13 @@ from offline_rl.algorithms.iql import IQL
 from offline_rl.algorithms.cql import CQL
 from offline_rl.algorithms.awac import AWAC
 from offline_rl.algorithms.off_policy_grpo import OffPolicyGRPO
+from offline_rl.algorithms.td3bc import TD3BC
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
-ALGO_MAP = {"iql": IQL, "cql": CQL, "awac": AWAC, "grpo": OffPolicyGRPO}
+ALGO_MAP = {"iql": IQL, "cql": CQL, "awac": AWAC, "grpo": OffPolicyGRPO, "td3bc": TD3BC}
 
 
 def _save_checkpoint(algo, output_path: str) -> None:
@@ -132,13 +134,27 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             kl_coeff=args.kl_coeff,
             n_policy_updates=args.n_policy_updates,
         )
+    if args.algo == "td3bc":
+        return TD3BC(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            alpha=args.td3bc_alpha,
+            target_noise=args.td3bc_target_noise,
+            noise_clip=args.td3bc_noise_clip,
+            policy_freq=args.td3bc_policy_freq,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
-    parser.add_argument("--algo", type=str, choices=["iql", "cql", "awac", "grpo"], default="iql")
+    parser.add_argument("--algo", type=str, choices=["iql", "cql", "awac", "grpo", "td3bc"], default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
@@ -159,6 +175,11 @@ def main():
     parser.add_argument("--clip-ratio", type=float, default=0.2, help="GRPO PPO-style clip ratio")
     parser.add_argument("--kl-coeff", type=float, default=0.01, help="GRPO KL penalty coefficient")
     parser.add_argument("--n-policy-updates", type=int, default=4, help="GRPO updates per sampled batch")
+    # TD3+BC specific
+    parser.add_argument("--td3bc-alpha", type=float, default=2.5, help="TD3+BC relative Q-weight (Fujimoto 2021 default: 2.5)")
+    parser.add_argument("--td3bc-target-noise", type=float, default=0.2, help="TD3+BC target policy smoothing noise std")
+    parser.add_argument("--td3bc-noise-clip", type=float, default=0.5, help="TD3+BC target noise clipping range")
+    parser.add_argument("--td3bc-policy-freq", type=int, default=2, help="TD3+BC actor update interval (delayed policy update)")
     parser.add_argument("--output", type=str, default=None, help="Save checkpoint path")
     args = parser.parse_args()
 

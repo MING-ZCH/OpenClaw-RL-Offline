@@ -11,6 +11,7 @@ from .iql import IQL, QNetwork, VNetwork
 from .cql import CQL
 from .awac import AWAC
 from .off_policy_grpo import OffPolicyGRPO
+from .td3bc import TD3BC, DeterministicActor
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -24,4 +25,6 @@ __all__ = [
     "CQL",
     "AWAC",
     "OffPolicyGRPO",
+    "TD3BC",
+    "DeterministicActor",
 ]

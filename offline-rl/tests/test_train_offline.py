@@ -55,6 +55,10 @@ def _make_args(algo: str) -> argparse.Namespace:
         clip_ratio=0.2,
         kl_coeff=0.01,
         n_policy_updates=2,
+        td3bc_alpha=2.5,
+        td3bc_target_noise=0.2,
+        td3bc_noise_clip=0.5,
+        td3bc_policy_freq=2,
     )
 
 
@@ -80,3 +84,31 @@ def test_build_algorithm_uses_requested_device(tmp_dir):
     buf = _create_buffer(tmp_dir)
     algo = train_script._build_algorithm(_make_args("grpo"), buf, device="cpu")
     assert str(algo.device) == "cpu"
+
+
+def test_build_td3bc_trains_and_returns_q_values(tmp_dir):
+    """TD3+BC creates, trains, and returns Q-values without errors."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("td3bc")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(hasattr(m, "loss") for m in metrics)
+    q_vals = algo.get_action_values(["state A", "state B"], ["action A", "action B"])
+    assert q_vals.shape == (2,)
+
+
+def test_td3bc_delayed_actor_update(tmp_dir):
+    """Actor loss is non-zero only on even steps (policy_freq=2)."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("td3bc")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    # Step 1: no actor update expected
+    from offline_rl.data.replay_buffer import ReplayBuffer
+    batch = buf.sample_transitions(8)
+    metrics1 = algo.train_step(batch)
+    assert metrics1.extra["actor_loss"] == 0.0  # step 1, no actor update
+    # Step 2: actor update expected
+    metrics2 = algo.train_step(batch)
+    assert metrics2.extra["actor_loss"] != 0.0  # step 2, actor updates
