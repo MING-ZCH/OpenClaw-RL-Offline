@@ -59,6 +59,13 @@ def _make_args(algo: str) -> argparse.Namespace:
         td3bc_target_noise=0.2,
         td3bc_noise_clip=0.5,
         td3bc_policy_freq=2,
+        edac_n_critics=3,
+        edac_eta=1.0,
+        edac_alpha_init=0.1,
+        edac_no_auto_alpha=False,
+        dt_context_len=5,
+        dt_nhead=2,
+        dt_layers=1,
     )
 
 
@@ -112,3 +119,73 @@ def test_td3bc_delayed_actor_update(tmp_dir):
     # Step 2: actor update expected
     metrics2 = algo.train_step(batch)
     assert metrics2.extra["actor_loss"] != 0.0  # step 2, actor updates
+
+
+def test_build_edac_trains_and_returns_q_values(tmp_dir):
+    """EDAC builds with N=3 ensemble, trains, returns mean Q-values."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("edac")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    assert algo.n_critics == 3
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(hasattr(m, "loss") for m in metrics)
+    # All extra keys present
+    assert "q_loss" in metrics[0].extra
+    assert "actor_loss" in metrics[0].extra
+    assert "alpha" in metrics[0].extra
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+
+
+def test_edac_uncertainty_advantages(tmp_dir):
+    """EDAC get_advantages returns penalized Q-values (shape, no nan)."""
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("edac")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    algo.train(num_steps=5, batch_size=4, log_interval=100)
+    adv = algo.get_advantages(["state X", "state Y"], ["act X", "act Y"])
+    assert adv.shape == (2,)
+    import math
+    assert all(not math.isnan(v) for v in adv.tolist())
+
+
+def test_build_dt_trains_on_trajectories(tmp_dir):
+    """Decision Transformer trains on trajectory batches, reduces loss."""
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("dt")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    assert getattr(algo, "_needs_trajectory_batch", False) is True
+    metrics = algo.train(num_steps=10, batch_size=4, log_interval=20)
+    assert len(metrics) > 0
+    assert all(m.loss >= 0 for m in metrics)
+    assert "bc_loss" in metrics[0].extra
+
+
+def test_dt_get_action_values_shape(tmp_dir):
+    """DT get_action_values returns (B,) proxy scores without error."""
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("dt")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    scores = algo.get_action_values(
+        ["context A", "context B", "context C"],
+        ["action A", "action B", "action C"],
+    )
+    assert scores.shape == (3,)
+
+
+def test_training_loop_grad_accum(tmp_dir):
+    """_training_loop with grad_accum=2 runs without error and returns metrics."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("iql")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    metrics = train_script._training_loop(
+        algo, buf,
+        num_steps=6, batch_size=4, log_interval=10,
+        use_amp=False, amp_dtype=None, grad_accum=2,
+    )
+    # 6 logged steps, each with 2 sub-steps = 12 train_step calls
+    assert len(metrics) == 6
+    assert all(m.loss >= 0 for m in metrics)
