@@ -6,6 +6,31 @@ This document explains what OpenClaw-RL-Offline implements today, what is intent
 
 OpenClaw-RL-Offline is not an empty scaffold. The repository contains a real offline data plane, functional lightweight offline RL baselines, and a real bridge back into the original slime-based LLM training flow. At the same time, some components are explicitly designed for CPU validation and research iteration rather than for immediate large-scale Qwen3-VL training.
 
+## Architecture View
+
+```mermaid
+flowchart TD
+	A[Collection adapters] --> B[TrajectoryStore]
+	B --> C[ReplayBuffer]
+	C --> D[Transition batches]
+	D --> E[Lightweight offline algorithms]
+	B --> F[OfflineDataSource]
+	F --> G[openclaw-offline rollout bridge]
+	E --> H[Weight files and diagnostics]
+	H --> G
+	G --> I[slime training runtime]
+```
+
+## Claim Tier Matrix
+
+| Claim | Supported by code and tests | External dependency remains |
+|---|---|---|
+| Offline JSONL data and replay are implemented | Yes | No |
+| Lightweight offline RL baselines are runnable | Yes | No |
+| Replay-aware Off-Policy GRPO exists | Yes | Only legacy datasets may fall back to reference-policy ratios |
+| Benchmark collection interfaces exist for four benchmarks | Yes | Real benchmark execution still requires upstream packages or services |
+| Full offline LLM training path exists | Yes | Yes, via slime runtime, checkpoints, and Linux-like multi-GPU setup |
+
 ## Fully Implemented Components
 
 | Area | What is implemented | Why it matters |

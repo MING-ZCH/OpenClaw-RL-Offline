@@ -6,6 +6,19 @@ It provides the reusable data and algorithm layer for collecting benchmark traje
 
 For a repository-level implementation audit, see [docs/implementation_status.md](./docs/implementation_status.md).
 
+## Data Flow Diagram
+
+```mermaid
+flowchart LR
+	A[TrajectoryStore JSONL] --> B[_trajectory_to_transitions]
+	B --> C[Transition.behavior_log_prob]
+	C --> D[TransitionBatch.behavior_log_probs]
+	D --> E[OffPolicyGRPO importance ratio]
+	A --> F[IQL / CQL / AWAC replay batches]
+	E --> G[Offline policy metrics]
+	F --> G
+```
+
 ## What This Package Includes
 
 ### Data Layer
@@ -100,6 +113,15 @@ python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --st
 - `trajectory.metadata["behavior_log_probs"]`, `trajectory.metadata["old_log_probs"]`, or `trajectory.metadata["rollout_log_probs"]` as either step-indexed maps or per-step lists
 
 If none of these fields are present, GRPO falls back to the frozen reference policy as an importance-ratio baseline. That fallback is convenient for old datasets, but it is less faithful than replaying the true behavior policy.
+
+## Replay Data Decision Table
+
+| Dataset property | GRPO behavior |
+|---|---|
+| Has scalar behavior log-probs per step | Uses them directly for off-policy ratios. |
+| Has token-level rollout log-prob lists | Sums them into sequence log-probs and uses those. |
+| Has only trajectory/reward data | Falls back to the reference-policy approximation. |
+| Has no benchmark runtime installed | Still supports replay-based offline training from stored JSONL data. |
 
 ### Choosing an algorithm
 
