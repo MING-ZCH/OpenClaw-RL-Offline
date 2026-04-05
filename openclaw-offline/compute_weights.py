@@ -1,15 +1,16 @@
 """
 Pre-compute advantage weights from offline RL critic for LLM fine-tuning.
 
-This script trains one of 21 offline RL critics on trajectory data, then
+This script trains one of 27 offline RL critics on trajectory data, then
 exports per-(trajectory, step) advantage/value weights as a JSON file for use
 by the custom ``offline_loss.py`` function during slime training.
 
-All 21 algorithms supported:
+All 27 algorithms supported:
     iql     cql     awac    grpo    td3bc   edac
     dt      crr     rwft    oreo    sorl    arpo
     retrospex  webrl  glider
-    archer  bcq     dpo     kto     rebel   digirl
+    archer  bcq     dpo     ipo     cpo     simpo
+    dmpo    eto     kto     rebel   digirl  vem
 
 Usage:
     python compute_weights.py --algo iql --data trajectories.jsonl --output weights.json
@@ -29,7 +30,10 @@ Advantage dispatch:
         CQL, TD3+BC, Retrospex, GLIDER    → Q-value
         WebRL                              → ORM probability P(success) ∈ [0, 1]
         DPO, KTO, REBEL                    → policy log-prob proxy
+        IPO, CPO, DMPO, ETO                 → policy log-prob proxy
+        SimPO                               → scaled log-prob (no ref model)
         DigiRL                             → V_step success probability ∈ [0, 1]
+        VEM                                → VEM-predicted state-action value
 """
 
 import argparse
@@ -183,6 +187,30 @@ def _build_algo(args, buffer, device):
             max_grad_norm=args.digirl_max_grad_norm,
         )
 
+    if args.algo == "ipo":
+        from offline_rl.algorithms.ipo import IPO
+        return IPO(**common, beta=args.ipo_beta)
+
+    if args.algo == "cpo":
+        from offline_rl.algorithms.cpo import CPO
+        return CPO(**common, beta=args.cpo_beta, lambda_bc=args.cpo_lambda_bc)
+
+    if args.algo == "simpo":
+        from offline_rl.algorithms.simpo import SimPO
+        return SimPO(**common, beta=args.simpo_beta, gamma_margin=args.simpo_gamma)
+
+    if args.algo == "dmpo":
+        from offline_rl.algorithms.dmpo import DMPO
+        return DMPO(**common, beta=args.dmpo_beta, length_power=args.dmpo_length_power)
+
+    if args.algo == "eto":
+        from offline_rl.algorithms.eto import ETO
+        return ETO(**common, beta=args.eto_beta, explore_alpha=args.eto_explore_alpha)
+
+    if args.algo == "vem":
+        from offline_rl.algorithms.vem import VEM
+        return VEM(**common, beta=args.vem_beta, alpha_awr=args.vem_alpha_awr)
+
     raise ValueError("Unknown algorithm: %s" % args.algo)
 
 
@@ -209,7 +237,8 @@ def main():
             "iql", "cql", "awac", "grpo", "td3bc", "edac",
             "dt", "crr", "rwft", "oreo", "sorl", "arpo",
             "retrospex", "webrl", "glider",
-            "archer", "kto", "dpo", "bcq", "rebel", "digirl",
+            "archer", "kto", "dpo", "ipo", "cpo", "simpo",
+            "dmpo", "eto", "bcq", "rebel", "digirl", "vem",
         ],
         default="iql",
         help="Offline RL algorithm to train the critic (default: iql)",
@@ -264,6 +293,34 @@ def main():
                         help="DigiRL hard-filter advantage threshold (default 0.1)")
     parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
                         help="DigiRL gradient clipping max norm (default 1.0)")
+    # IPO-specific
+    parser.add_argument("--ipo-beta", type=float, default=0.1,
+                        help="IPO temperature beta (default 0.1)")
+    # CPO-specific
+    parser.add_argument("--cpo-beta", type=float, default=0.1,
+                        help="CPO DPO temperature beta (default 0.1)")
+    parser.add_argument("--cpo-lambda-bc", type=float, default=1.0,
+                        help="CPO behavior cloning loss weight (default 1.0)")
+    # SimPO-specific
+    parser.add_argument("--simpo-beta", type=float, default=2.0,
+                        help="SimPO scaling beta (default 2.0)")
+    parser.add_argument("--simpo-gamma", type=float, default=0.5,
+                        help="SimPO target reward margin gamma (default 0.5)")
+    # DMPO-specific
+    parser.add_argument("--dmpo-beta", type=float, default=0.1,
+                        help="DMPO DPO temperature beta (default 0.1)")
+    parser.add_argument("--dmpo-length-power", type=float, default=0.5,
+                        help="DMPO length normalization exponent (default 0.5)")
+    # ETO-specific
+    parser.add_argument("--eto-beta", type=float, default=0.1,
+                        help="ETO DPO temperature beta (default 0.1)")
+    parser.add_argument("--eto-explore-alpha", type=float, default=1.0,
+                        help="ETO exploration bonus scale (default 1.0)")
+    # VEM-specific
+    parser.add_argument("--vem-beta", type=float, default=1.0,
+                        help="VEM AWR temperature (default 1.0)")
+    parser.add_argument("--vem-alpha-awr", type=float, default=1.0,
+                        help="VEM AWR loss weight (default 1.0)")
     args = parser.parse_args()
 
     # Load data

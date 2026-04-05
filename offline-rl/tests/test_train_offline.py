@@ -107,6 +107,23 @@ def _make_args(algo: str) -> argparse.Namespace:
         digirl_lam=0.5,
         digirl_adv_threshold=0.1,
         digirl_max_grad_norm=1.0,
+        # IPO
+        ipo_beta=0.1,
+        # CPO
+        cpo_beta=0.1,
+        cpo_lambda_bc=1.0,
+        # SimPO
+        simpo_beta=2.0,
+        simpo_gamma=0.5,
+        # DMPO
+        dmpo_beta=0.1,
+        dmpo_length_power=0.5,
+        # ETO
+        eto_beta=0.1,
+        eto_explore_alpha=1.0,
+        # VEM
+        vem_beta=1.0,
+        vem_alpha_awr=1.0,
     )
 
 
@@ -693,3 +710,113 @@ def test_build_digirl_trains_with_dr_advantage(tmp_dir):
     assert q_vals.shape == (2,)
     # V_step returns sigmoid ∈ (0, 1)
     assert all(0.0 <= v <= 1.0 for v in q_vals.tolist())
+
+
+# ================== IPO tests =============================================
+
+def test_build_ipo_trains_with_squared_preference(tmp_dir):
+    """IPO builds, trains squared-error preference loss, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("ipo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== CPO tests =============================================
+
+def test_build_cpo_trains_with_contrastive_bc(tmp_dir):
+    """CPO builds, trains DPO+BC contrastive loss, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("cpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # CPO-specific extra keys
+    assert "dpo_loss" in metrics[0].extra
+    assert "bc_loss" in metrics[0].extra
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== SimPO tests ===========================================
+
+def test_build_simpo_trains_reference_free(tmp_dir):
+    """SimPO builds, trains reference-free preference, returns scaled log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("simpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    # SimPO should NOT have ref_policy
+    assert not hasattr(algo, "ref_policy")
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== DMPO tests ============================================
+
+def test_build_dmpo_trains_with_length_norm(tmp_dir):
+    """DMPO builds, trains length-normalized DPO, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("dmpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== ETO tests =============================================
+
+def test_build_eto_trains_with_exploration_bonus(tmp_dir):
+    """ETO builds, trains exploration-weighted DPO, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("eto")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== VEM tests =============================================
+
+def test_build_vem_trains_value_model_and_policy(tmp_dir):
+    """VEM builds, trains VEM value model + AWR policy, returns VEM Q-values."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("vem")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # VEM-specific extra keys
+    assert "vem_loss" in metrics[0].extra
+    assert "awr_loss" in metrics[0].extra
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())

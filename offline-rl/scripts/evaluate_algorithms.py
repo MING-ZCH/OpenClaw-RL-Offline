@@ -52,9 +52,15 @@ from offline_rl.algorithms.glider import GLIDER
 from offline_rl.algorithms.archer import ArCHer
 from offline_rl.algorithms.bcq import BCQ
 from offline_rl.algorithms.dpo import DPO
+from offline_rl.algorithms.ipo import IPO
+from offline_rl.algorithms.cpo import CPO
+from offline_rl.algorithms.simpo import SimPO
+from offline_rl.algorithms.dmpo import DMPO
+from offline_rl.algorithms.eto import ETO
 from offline_rl.algorithms.kto import KTO
 from offline_rl.algorithms.rebel import REBEL
 from offline_rl.algorithms.digirl import DigiRL
+from offline_rl.algorithms.vem import VEM
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -62,7 +68,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "kto", "rebel", "digirl"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "vem"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -83,9 +89,15 @@ _ALGO_REFS = {
     "archer": "Zhou et al. ICML 2024 arXiv 2402.19446",
     "bcq": "Fujimoto et al. ICML 2019 arXiv 1812.02900",
     "dpo": "Rafailov et al. NeurIPS 2023 arXiv 2305.18290",
+    "ipo": "Azar et al. AISTATS 2024 arXiv 2310.12036",
+    "cpo": "Xu et al. ICML 2024 arXiv 2401.08417",
+    "simpo": "Meng et al. NeurIPS 2024 arXiv 2405.14734",
+    "dmpo": "Shi et al. EMNLP 2024 arXiv 2406.14868",
+    "eto": "Song et al. ACL 2024 arXiv 2403.02502",
     "kto": "Ethayarajh et al. 2024 arXiv 2402.01306",
     "rebel": "Gao et al. NeurIPS 2024 arXiv 2404.16767",
     "digirl": "Bai et al. 2024 arXiv 2406.11896",
+    "vem": "Song et al. Microsoft 2025 arXiv 2502.18906",
 }
 
 
@@ -145,12 +157,24 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
         return BCQ(**common, tau=0.7, bc_weight=1.0)
     if name == "dpo":
         return DPO(**common, beta=0.1)
+    if name == "ipo":
+        return IPO(**common, beta=0.1)
+    if name == "cpo":
+        return CPO(**common, beta=0.1, lambda_bc=1.0)
+    if name == "simpo":
+        return SimPO(**common, beta=2.0, gamma_margin=0.5)
+    if name == "dmpo":
+        return DMPO(**common, beta=0.1, length_power=0.5)
+    if name == "eto":
+        return ETO(**common, beta=0.1, explore_alpha=1.0)
     if name == "kto":
         return KTO(**common)
     if name == "rebel":
         return REBEL(**common, eta=1.0, ref_update_interval=1)
     if name == "digirl":
         return DigiRL(**common, lam=0.5, adv_threshold=0.1)
+    if name == "vem":
+        return VEM(**common, beta=1.0, alpha_awr=1.0)
     raise ValueError("Unknown algorithm: %s" % name)
 
 

@@ -25,9 +25,15 @@ from .glider import GLIDER, PlanEncoder
 from .archer import ArCHer
 from .kto import KTO
 from .dpo import DPO
+from .dmpo import DMPO
+from .ipo import IPO
+from .cpo import CPO
+from .simpo import SimPO
+from .eto import ETO
 from .bcq import BCQ, BehaviorCloningNetwork
 from .rebel import REBEL
 from .digirl import DigiRL, StepValueNet, InstructValueNet
+from .vem import VEM, ValueEnvironmentModel
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -60,10 +66,17 @@ __all__ = [
     "ArCHer",
     "KTO",
     "DPO",
+    "DMPO",
+    "IPO",
+    "CPO",
+    "SimPO",
+    "ETO",
     "BCQ",
     "BehaviorCloningNetwork",
     "REBEL",
     "DigiRL",
     "StepValueNet",
     "InstructValueNet",
+    "VEM",
+    "ValueEnvironmentModel",
 ]

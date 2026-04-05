@@ -50,9 +50,15 @@ from offline_rl.algorithms.glider import GLIDER
 from offline_rl.algorithms.archer import ArCHer
 from offline_rl.algorithms.bcq import BCQ
 from offline_rl.algorithms.dpo import DPO
+from offline_rl.algorithms.ipo import IPO
+from offline_rl.algorithms.cpo import CPO
+from offline_rl.algorithms.simpo import SimPO
+from offline_rl.algorithms.dmpo import DMPO
+from offline_rl.algorithms.eto import ETO
 from offline_rl.algorithms.kto import KTO
 from offline_rl.algorithms.rebel import REBEL
 from offline_rl.algorithms.digirl import DigiRL
+from offline_rl.algorithms.vem import VEM
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -77,9 +83,15 @@ ALGO_MAP = {
     "archer": ArCHer,
     "bcq": BCQ,
     "dpo": DPO,
+    "ipo": IPO,
+    "cpo": CPO,
+    "simpo": SimPO,
+    "dmpo": DMPO,
+    "eto": ETO,
     "kto": KTO,
     "rebel": REBEL,
     "digirl": DigiRL,
+    "vem": VEM,
 }
 
 
@@ -399,6 +411,76 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             adv_threshold=args.digirl_adv_threshold,
             max_grad_norm=args.digirl_max_grad_norm,
         )
+    if args.algo == "ipo":
+        return IPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.ipo_beta,
+        )
+    if args.algo == "cpo":
+        return CPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.cpo_beta,
+            lambda_bc=args.cpo_lambda_bc,
+        )
+    if args.algo == "simpo":
+        return SimPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            device=device,
+            beta=args.simpo_beta,
+            gamma_margin=args.simpo_gamma,
+        )
+    if args.algo == "dmpo":
+        return DMPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.dmpo_beta,
+            length_power=args.dmpo_length_power,
+        )
+    if args.algo == "eto":
+        return ETO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.eto_beta,
+            explore_alpha=args.eto_explore_alpha,
+        )
+    if args.algo == "vem":
+        return VEM(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.vem_beta,
+            alpha_awr=args.vem_alpha_awr,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -463,7 +545,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "kto", "rebel", "digirl"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "vem"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -570,6 +652,34 @@ def main():
                         help="DigiRL hard-filter threshold for AWR (default 0.1)")
     parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
                         help="DigiRL gradient clipping max norm (default 1.0)")
+    # IPO specific
+    parser.add_argument("--ipo-beta", type=float, default=0.1,
+                        help="IPO temperature beta (target margin = 1/(2*beta), default 0.1)")
+    # CPO specific
+    parser.add_argument("--cpo-beta", type=float, default=0.1,
+                        help="CPO DPO temperature beta (default 0.1)")
+    parser.add_argument("--cpo-lambda-bc", type=float, default=1.0,
+                        help="CPO behavior cloning loss weight (default 1.0)")
+    # SimPO specific
+    parser.add_argument("--simpo-beta", type=float, default=2.0,
+                        help="SimPO scaling beta (default 2.0)")
+    parser.add_argument("--simpo-gamma", type=float, default=0.5,
+                        help="SimPO target reward margin gamma (default 0.5)")
+    # DMPO specific
+    parser.add_argument("--dmpo-beta", type=float, default=0.1,
+                        help="DMPO DPO temperature beta (default 0.1)")
+    parser.add_argument("--dmpo-length-power", type=float, default=0.5,
+                        help="DMPO length normalization exponent (default 0.5 = sqrt)")
+    # ETO specific
+    parser.add_argument("--eto-beta", type=float, default=0.1,
+                        help="ETO DPO temperature beta (default 0.1)")
+    parser.add_argument("--eto-explore-alpha", type=float, default=1.0,
+                        help="ETO exploration bonus scale for near-miss weighting (default 1.0)")
+    # VEM specific
+    parser.add_argument("--vem-beta", type=float, default=1.0,
+                        help="VEM AWR temperature for advantage weighting (default 1.0)")
+    parser.add_argument("--vem-alpha-awr", type=float, default=1.0,
+                        help="VEM AWR loss weight relative to VEM MSE loss (default 1.0)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")
