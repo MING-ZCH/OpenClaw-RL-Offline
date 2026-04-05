@@ -2,7 +2,7 @@
 """
 Train offline RL algorithms on pre-collected trajectories.
 
-Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT
+Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500
@@ -12,6 +12,8 @@ Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo td3bc --td3bc-alpha 2.5
     python scripts/train_offline.py --data data/trajectories.jsonl --algo edac --edac-n-critics 5 --edac-eta 1.0
     python scripts/train_offline.py --data data/trajectories.jsonl --algo dt --dt-context-len 20
+    python scripts/train_offline.py --data data/trajectories.jsonl --algo crr --crr-filter exp --crr-beta 1.0
+    python scripts/train_offline.py --data data/trajectories.jsonl --algo rwft --rwft-beta 1.0
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --amp --grad-accum-steps 4
 """
 
@@ -37,6 +39,8 @@ from offline_rl.algorithms.off_policy_grpo import OffPolicyGRPO
 from offline_rl.algorithms.td3bc import TD3BC
 from offline_rl.algorithms.edac import EDAC
 from offline_rl.algorithms.decision_transformer import DecisionTransformer
+from offline_rl.algorithms.crr import CRR
+from offline_rl.algorithms.rw_finetuning import RWFineTuning
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,6 +54,8 @@ ALGO_MAP = {
     "td3bc": TD3BC,
     "edac": EDAC,
     "dt": DecisionTransformer,
+    "crr": CRR,
+    "rwft": RWFineTuning,
 }
 
 
@@ -190,6 +196,32 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             nhead=args.dt_nhead,
             num_transformer_layers=args.dt_layers,
         )
+    if args.algo == "crr":
+        return CRR(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.crr_beta,
+            filter_type=args.crr_filter,
+            mc_samples=args.crr_mc_samples,
+        )
+    if args.algo == "rwft":
+        return RWFineTuning(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.rwft_beta,
+            reward_norm=args.rwft_reward_norm,
+            reward_clip=args.rwft_reward_clip,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -254,7 +286,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -290,6 +322,16 @@ def main():
     parser.add_argument("--dt-context-len", type=int, default=20, help="DT context window length (K timesteps)")
     parser.add_argument("--dt-nhead", type=int, default=4, help="DT transformer attention heads")
     parser.add_argument("--dt-layers", type=int, default=2, help="DT number of transformer layers")
+    # CRR specific
+    parser.add_argument("--crr-beta", type=float, default=1.0, help="CRR temperature for exp/softmax filter")
+    parser.add_argument("--crr-filter", type=str, default="exp",
+                        choices=["exp", "binary", "softmax"], help="CRR advantage filter type")
+    parser.add_argument("--crr-mc-samples", type=int, default=8, help="CRR Monte-Carlo samples for V-estimate")
+    # RW-FT specific
+    parser.add_argument("--rwft-beta", type=float, default=1.0, help="RW-FT softmax temperature for reward weighting")
+    parser.add_argument("--rwft-reward-norm", type=str, default="softmax",
+                        choices=["softmax", "exp"], help="RW-FT reward normalization: softmax or exp")
+    parser.add_argument("--rwft-reward-clip", type=float, default=10.0, help="RW-FT max weight multiplier for stability")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

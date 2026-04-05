@@ -34,6 +34,11 @@ flowchart LR
 - `CQL`: conservative Q-learning for stronger out-of-distribution control.
 - `AWAC`: advantage-weighted actor-critic for offline-to-online friendly fine-tuning.
 - `Off-Policy GRPO`: replay-based GRPO aligned with the upstream OpenClaw training style, with support for replayed behavior-policy log-probs when available.
+- `TD3+BC` (Fujimoto & Gu, NeurIPS 2021): deterministic actor with BC regularization; minimal hyperparameter overhead.
+- `EDAC` (An et al., NeurIPS 2021): N-ensemble Q-critics with diversity penalty for pessimistic offline value estimation.
+- `Decision Transformer` (Chen et al., NeurIPS 2021): return-conditioned causal sequence model; offline policy as supervised learning on (R, s, a) sequences.
+- `CRR` (Wang et al., NeurIPS 2020): critic-regularized regression; advantage-weighted BC with MC V-baseline and configurable filter (exp / binary / softmax).
+- `RW-FT` (Mukherjee et al., NeurIPS 2025): reward-weighted fine-tuning; simplest offline algorithm — trajectory-level reward-weighted BC, no critic required.
 
 ### Benchmark Adapters
 
@@ -101,6 +106,10 @@ python scripts/train_offline.py --algo iql --data data/osworld_trajs.jsonl --ste
 python scripts/train_offline.py --algo cql --data data/webarena_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo awac --data data/alfworld_trajs.jsonl --steps 500
 python scripts/train_offline.py --algo td3bc --data data/osworld_trajs.jsonl --steps 500 --td3bc-alpha 2.5
+python scripts/train_offline.py --algo edac --data data/osworld_trajs.jsonl --steps 500 --edac-n-critics 5 --edac-eta 1.0
+python scripts/train_offline.py --algo dt   --data data/osworld_trajs.jsonl --steps 300 --dt-context-len 20
+python scripts/train_offline.py --algo crr  --data data/osworld_trajs.jsonl --steps 500 --crr-filter exp --crr-beta 1.0
+python scripts/train_offline.py --algo rwft --data data/osworld_trajs.jsonl --steps 300 --rwft-beta 1.0
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 ```
 
@@ -148,6 +157,10 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `CQL` | Stronger out-of-distribution control | Uses a lightweight conservative regularizer over sampled action embeddings. |
 | `AWAC` | Offline-to-online style actor updates | Good when you want explicit actor learning rather than pure value extraction. |
 | `TD3+BC` | Minimalist BC-regularized policy learning (Fujimoto & Gu, NeurIPS 2021) | Twin Q-networks + deterministic actor; policy loss = −λQ + BC; λ adapts to Q magnitude. |
+| `EDAC` | Uncertainty-penalized offline Q-learning with ensemble (An et al., NeurIPS 2021) | N-critics (default 10); SAC-style stochastic actor; pessimistic target Q_min − η·Q_std; auto-tuned alpha. |
+| `DT` | Return-conditioned sequence modeling (Chen et al., NeurIPS 2021) | Causal Transformer; 3-token interleaved (R, s, a); offline policy as supervised learning on fixed target returns. |
+| `CRR` | Advantage-weighted BC for high-quality offline datasets (Wang et al., NeurIPS 2020) | Twin Q + MC V-baseline (K=8 samples); exp/binary/softmax filter; selective update from positive-advantage transitions. |
+| `RW-FT` | Simplest reward-weighted fine-tuning for LLM agents (Mukherjee et al., NeurIPS 2025) | Trajectory-level outcome reward as softmax weight for BC loss; no critic; suitable for best-of-N dataset distillation. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline

@@ -14,6 +14,8 @@ from .off_policy_grpo import OffPolicyGRPO
 from .td3bc import TD3BC, DeterministicActor
 from .edac import EDAC, GaussianActor
 from .decision_transformer import DecisionTransformer
+from .crr import CRR
+from .rw_finetuning import RWFineTuning
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -32,4 +34,6 @@ __all__ = [
     "EDAC",
     "GaussianActor",
     "DecisionTransformer",
+    "CRR",
+    "RWFineTuning",
 ]

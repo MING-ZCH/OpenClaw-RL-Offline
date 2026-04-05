@@ -66,6 +66,12 @@ def _make_args(algo: str) -> argparse.Namespace:
         dt_context_len=5,
         dt_nhead=2,
         dt_layers=1,
+        crr_beta=1.0,
+        crr_filter="exp",
+        crr_mc_samples=4,
+        rwft_beta=1.0,
+        rwft_reward_norm="softmax",
+        rwft_reward_clip=10.0,
     )
 
 
@@ -189,3 +195,69 @@ def test_training_loop_grad_accum(tmp_dir):
     # 6 logged steps, each with 2 sub-steps = 12 train_step calls
     assert len(metrics) == 6
     assert all(m.loss >= 0 for m in metrics)
+
+
+def test_build_crr_trains_and_returns_q_values(tmp_dir):
+    """CRR builds, trains, returns Q-values and advantages without error."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("crr")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(hasattr(m, "loss") for m in metrics)
+    # Q-values
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    # Advantages
+    adv = algo.get_advantages(["obs A", "obs B"], ["act A", "act B"])
+    assert adv.shape == (2,)
+    # Extra metrics keys
+    assert "q_loss" in metrics[0].extra
+    assert "actor_loss" in metrics[0].extra
+    assert "advantage_mean" in metrics[0].extra
+
+
+def test_crr_filter_types_run_without_error(tmp_dir):
+    """CRR runs with binary, softmax, and exp filters without error."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    for filter_type in ("exp", "binary", "softmax"):
+        args = _make_args("crr")
+        args.crr_filter = filter_type
+        algo = train_script._build_algorithm(args, buf, device="cpu")
+        metrics = algo.train(num_steps=5, batch_size=4, log_interval=100)
+        assert all(not math.isnan(m.loss) for m in metrics), (
+            "NaN loss with crr_filter=%s" % filter_type
+        )
+
+
+def test_build_rwft_trains_and_returns_proxy_scores(tmp_dir):
+    """RW-FT builds, trains with reward-weighted BC, returns proxy Q-values."""
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("rwft")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(hasattr(m, "loss") for m in metrics)
+    # Extra metrics keys
+    assert "bc_loss" in metrics[0].extra
+    assert "reward_weight_mean" in metrics[0].extra
+    # Proxy scores are negative MSE (unbounded, check shape)
+    scores = algo.get_action_values(["s1", "s2", "s3"], ["a1", "a2", "a3"])
+    assert scores.shape == (3,)
+
+
+def test_rwft_reward_norm_softmax_vs_exp(tmp_dir):
+    """RW-FT softmax and exp reward norms both run without NaN."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    for norm in ("softmax", "exp"):
+        args = _make_args("rwft")
+        args.rwft_reward_norm = norm
+        algo = train_script._build_algorithm(args, buf, device="cpu")
+        metrics = algo.train(num_steps=5, batch_size=4, log_interval=100)
+        assert all(not math.isnan(m.loss) for m in metrics), (
+            "NaN loss with rwft_reward_norm=%s" % norm
+        )

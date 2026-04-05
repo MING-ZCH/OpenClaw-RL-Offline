@@ -49,6 +49,10 @@ flowchart LR
 | `offline-rl` data layer | Real | `TrajectoryStore`, `ReplayBuffer`, prioritized sampling, and slime-compatible replay data source are implemented and tested. |
 | `IQL`, `CQL`, `AWAC` | Real lightweight baselines | These are functional offline RL algorithms built around small text encoders for CPU validation and research iteration. |
 | `TD3+BC` | Real lightweight baseline | TD3 with behavior cloning regularization (Fujimoto & Gu, NeurIPS 2021); deterministic actor; BC + normalized Q loss. |
+| `EDAC` | Real lightweight baseline | Ensemble-diversified actor-critic (An et al., NeurIPS 2021); N Q-critics (default 10) with diversity penalty; SAC-style stochastic actor; auto-tuned temperature. |
+| `Decision Transformer` | Real lightweight baseline | Return-conditioned causal sequence model (Chen et al., NeurIPS 2021); 3-token (R, s, a) interleave; offline policy as supervised learning on trajectory sequences. |
+| `CRR` | Real lightweight baseline | Critic-regularized regression (Wang et al., NeurIPS 2020); MC V-baseline advantage weighting; exp / binary / softmax filters; selective BC update. |
+| `RW-FT` | Real lightweight baseline | Reward-weighted fine-tuning (Mukherjee et al., NeurIPS 2025); trajectory-level outcome reward as softmax BC weight; no critic; simplest offline LLM agent training. |
 | `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
 | `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
 | Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
@@ -61,7 +65,7 @@ This repository does not claim to replace the upstream full training runtime. It
 | Goal | Start here | Why |
 |---|---|---|
 | Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
-| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, and GRPO on replay data without entering the full slime stack. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, or RW-FT on replay data without entering the full slime stack. |
 | Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
 | Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |
 | Audit implementation scope | `offline-rl/docs/implementation_status.md` | Separates real implemented features from intentional approximations. |
