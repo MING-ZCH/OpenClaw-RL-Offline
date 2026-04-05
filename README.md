@@ -42,7 +42,7 @@ flowchart LR
 - Windows-friendly PowerShell wrappers for benchmark collection, plus PowerShell forwarding entry points for offline training.
 - Documentation rewritten around the components that are actually present in this repository snapshot.
 
-## What Is Actually Implemented Today
+## What Is Actually Implemented
 
 | Component | Status | Notes |
 |---|---|---|
@@ -308,3 +308,10 @@ See [slime/README.md](./slime/README.md) for detailed multi-GPU setup instructio
 - A Linux-like environment (native Linux or WSL2 on Windows)
 - Megatron-LM installed and on `PYTHONPATH`
 - Model checkpoints for Qwen3-VL or equivalent
+
+## Contact
+
+- **Chen-Hao (Leo) Chang** (张辰皓)
+- GitHub: [@MING-ZCH](https://github.com/MING-ZCH)
+- Email: [leo.chenhaozhang@gmail.com](mailto:leo.chenhaozhang@gmail.com) / [ch_zhang@hust.edu.cn](mailto:ch_zhang@hust.edu.cn)
+- Homepage: [https://ming-zch.github.io/](https://ming-zch.github.io/)

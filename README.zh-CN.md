@@ -50,12 +50,6 @@ flowchart LR
 | `openclaw-offline` | 真实 bridge | 会把离线轨迹重放回原始 slime 训练接口，而不是单独做一个玩具 trainer。 |
 | 多 benchmark 采集包装 | 已实现 | OSWorld、AndroidWorld、WebArena、AlfWorld 都有 mock 适配与脚本。 |
 
-## 这个仓库没有夸大什么
-
-- 轻量 offline baseline 使用的是 CPU 友好的小型文本编码器，不是完整 Qwen3-VL 主干。
-- mock benchmark 适配器主要用于 repo 级验证，不等价于真实 benchmark 环境。
-- PowerShell 启动脚本只是 Windows 宿主机入口，真正的大规模训练仍然依赖 Linux 风格运行时与 slime 栈。
-
 ## 推荐阅读顺序
 
 1. 先看 [README.md](./README.md) 了解英文版整体定位和快速开始。
@@ -171,3 +165,10 @@ python -c "import torch; print(torch.cuda.is_available())"
 ### 完整 LLM 大规模训练（slime + Megatron）
 
 详见 [slime/README.md](./slime/README.md)。完整训练还需要 Linux 风格环境、Megatron-LM 以及 Qwen3-VL 等模型权重。
+
+## 联系方式
+
+- **张辰皓** (Chen-Hao / Leo Chang)
+- GitHub: [@MING-ZCH](https://github.com/MING-ZCH)
+- 邮箱: [leo.chenhaozhang@gmail.com](mailto:leo.chenhaozhang@gmail.com) / [ch_zhang@hust.edu.cn](mailto:ch_zhang@hust.edu.cn)
+- 主页: [https://ming-zch.github.io/](https://ming-zch.github.io/)
