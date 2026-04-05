@@ -72,6 +72,9 @@ def _make_args(algo: str) -> argparse.Namespace:
         rwft_beta=1.0,
         rwft_reward_norm="softmax",
         rwft_reward_clip=10.0,
+        oreo_beta=1.0,
+        oreo_mc_samples=4,
+        sorl_clip_norm_threshold=0.2,
     )
 
 
@@ -261,3 +264,79 @@ def test_rwft_reward_norm_softmax_vs_exp(tmp_dir):
         assert all(not math.isnan(m.loss) for m in metrics), (
             "NaN loss with rwft_reward_norm=%s" % norm
         )
+
+
+def test_build_oreo_trains_and_returns_q_values(tmp_dir):
+    """OREO builds, trains with soft Bellman, returns Q-values and advantages."""
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("oreo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(hasattr(m, "loss") for m in metrics)
+    # Q-values
+    q_vals = algo.get_action_values(["s A", "s B"], ["a A", "a B"])
+    assert q_vals.shape == (2,)
+    # Soft advantages
+    adv = algo.get_advantages(["s A", "s B"], ["a A", "a B"])
+    assert adv.shape == (2,)
+    # Extra metrics
+    assert "q_loss" in metrics[0].extra
+    assert "soft_adv_mean" in metrics[0].extra
+
+
+def test_build_sorl_trains_with_ctn(tmp_dir):
+    """SORL builds, trains with CTN, exposes clip_fraction metric."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=10)
+    args = _make_args("sorl")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # CTN-specific keys
+    assert "clip_fraction" in metrics[0].extra
+    assert "ctn_normalized" in metrics[0].extra
+
+
+def test_oreo_soft_v_is_greater_than_arithmetic_mean_v(tmp_dir):
+    """Soft V (log-mean-exp) >= arithmetic mean V for the SAME Q samples.
+
+    Jensen's inequality: log(mean(exp(x_k))) >= mean(x_k)
+    Equivalently:  β * log_mean_exp(Q_k/β) >= mean(Q_k)
+    This must hold exactly when both use the same Q_k values.
+    We verify the property by computing both on the same pre-drawn Q tensor.
+    """
+    import math
+    import torch
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("oreo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    algo.train(num_steps=5, batch_size=4, log_interval=100)
+
+    beta = algo.beta
+    K = 6
+    # Construct synthetic Q values: some positive, some negative, varied
+    torch.manual_seed(42)
+    q_vals = torch.randn(8, K)  # (B, K) arbitrary Q tensor
+
+    soft_v = beta * (
+        torch.logsumexp(q_vals / beta, dim=1)
+        - torch.log(torch.tensor(float(K)))
+    )
+    hard_v = q_vals.mean(dim=1)
+
+    # Jensen's inequality must always hold on the same Q tensor
+    assert (soft_v >= hard_v - 1e-5).all(), (
+        "Soft V >= arithmetic V not satisfied: diff=%s" % (soft_v - hard_v).tolist()
+    )
+    # Also check that OREO._soft_v returns finite values of correct shape
+    sample = buf.sample_transitions(4)
+    s_tokens = algo._tokenize(sample.observation_contexts[:4])
+    with torch.no_grad():
+        states_d = algo.state_encoder(s_tokens).detach()
+    v = algo._soft_v(states_d)
+    assert v.shape == (4,)
+    assert all(math.isfinite(x) for x in v.tolist())

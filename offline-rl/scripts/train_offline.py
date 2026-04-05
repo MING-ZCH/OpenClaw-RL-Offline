@@ -41,6 +41,8 @@ from offline_rl.algorithms.edac import EDAC
 from offline_rl.algorithms.decision_transformer import DecisionTransformer
 from offline_rl.algorithms.crr import CRR
 from offline_rl.algorithms.rw_finetuning import RWFineTuning
+from offline_rl.algorithms.oreo import OREO
+from offline_rl.algorithms.sorl import SORLOffPolicyGRPO
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,6 +58,8 @@ ALGO_MAP = {
     "dt": DecisionTransformer,
     "crr": CRR,
     "rwft": RWFineTuning,
+    "oreo": OREO,
+    "sorl": SORLOffPolicyGRPO,
 }
 
 
@@ -222,6 +226,32 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             reward_norm=args.rwft_reward_norm,
             reward_clip=args.rwft_reward_clip,
         )
+    if args.algo == "oreo":
+        return OREO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            beta=args.oreo_beta,
+            mc_samples=args.oreo_mc_samples,
+        )
+    if args.algo == "sorl":
+        return SORLOffPolicyGRPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            clip_ratio=args.clip_ratio,
+            kl_coeff=args.kl_coeff,
+            n_policy_updates=args.n_policy_updates,
+            clip_norm_threshold=args.sorl_clip_norm_threshold,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -286,7 +316,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -332,6 +362,12 @@ def main():
     parser.add_argument("--rwft-reward-norm", type=str, default="softmax",
                         choices=["softmax", "exp"], help="RW-FT reward normalization: softmax or exp")
     parser.add_argument("--rwft-reward-clip", type=float, default=10.0, help="RW-FT max weight multiplier for stability")
+    # OREO specific
+    parser.add_argument("--oreo-beta", type=float, default=1.0, help="OREO MaxEnt temperature (soft Bellman beta)")
+    parser.add_argument("--oreo-mc-samples", type=int, default=8, help="OREO MC samples for soft V estimate")
+    # SORL specific
+    parser.add_argument("--sorl-clip-norm-threshold", type=float, default=0.2,
+                        help="SORL: clip fraction threshold above which advantages are normalized (CTN)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

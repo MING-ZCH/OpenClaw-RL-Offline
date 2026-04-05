@@ -16,6 +16,8 @@ from .edac import EDAC, GaussianActor
 from .decision_transformer import DecisionTransformer
 from .crr import CRR
 from .rw_finetuning import RWFineTuning
+from .oreo import OREO
+from .sorl import SORLOffPolicyGRPO
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -36,4 +38,6 @@ __all__ = [
     "DecisionTransformer",
     "CRR",
     "RWFineTuning",
+    "OREO",
+    "SORLOffPolicyGRPO",
 ]
