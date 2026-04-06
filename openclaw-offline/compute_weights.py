@@ -45,6 +45,8 @@ import logging
 import os
 import sys
 
+import numpy as np
+
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _OFFLINE_RL_DIR = os.path.join(os.path.dirname(_SCRIPT_DIR), "offline-rl")
 if _OFFLINE_RL_DIR not in sys.path:
@@ -100,11 +102,11 @@ def _build_algo(args, buffer, device):
 
     if args.algo == "edac":
         from offline_rl.algorithms.edac import EDAC
-        return EDAC(**common, n_critics=3, eta=1.0, alpha_init=0.1, auto_alpha=True)
+        return EDAC(**common, n_critics=args.edac_n_critics, eta=1.0, alpha_init=0.1, auto_alpha=True)
 
     if args.algo == "dt":
         from offline_rl.algorithms.decision_transformer import DecisionTransformer
-        return DecisionTransformer(**common, context_len=10, nhead=2, num_transformer_layers=1)
+        return DecisionTransformer(**common, context_len=args.dt_context_len, nhead=2, num_transformer_layers=1)
 
     if args.algo == "crr":
         from offline_rl.algorithms.crr import CRR
@@ -371,6 +373,12 @@ def main():
                         help="VEM AWR temperature (default 1.0)")
     parser.add_argument("--vem-alpha-awr", type=float, default=1.0,
                         help="VEM AWR loss weight (default 1.0)")
+    # DT-specific
+    parser.add_argument("--dt-context-len", type=int, default=10,
+                        help="Decision Transformer context length (default 10)")
+    # EDAC-specific
+    parser.add_argument("--edac-n-critics", type=int, default=5,
+                        help="EDAC ensemble size (default 5; paper uses 10)")
     args = parser.parse_args()
 
     # Load data
@@ -417,7 +425,7 @@ def main():
             key = "{}:{}".format(traj.trajectory_id, step.step_idx)
             weights[key] = _get_advantage(algo, args.algo, state, action)
 
-    # Save
+    # Save JSON
     output_dir = os.path.dirname(os.path.abspath(args.output))
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
@@ -425,6 +433,16 @@ def main():
         json.dump(weights, f, indent=2)
 
     logger.info("Saved %d advantage weights to %s", len(weights), args.output)
+
+    # Also save as .npz for efficient numpy loading
+    npz_path = os.path.splitext(args.output)[0] + ".npz"
+    keys = sorted(weights.keys())
+    np.savez_compressed(
+        npz_path,
+        keys=np.array(keys, dtype=object),
+        values=np.array([weights[k] for k in keys], dtype=np.float32),
+    )
+    logger.info("Saved .npz weights to %s", npz_path)
 
     # Summary
     values = list(weights.values())

@@ -196,6 +196,7 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
         total_kl_loss = 0.0
         total_ratio = 0.0
         total_behavior_coverage = 0.0
+        total_grad_norm = 0.0
 
         for _ in range(self.n_policy_updates):
             s, a = self._encode_batch(batch)
@@ -225,6 +226,9 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
 
             self.optimizer.zero_grad()
             loss.backward()
+            grad_norm = self._compute_grad_norm(
+                self.state_encoder, self.action_encoder, self.policy,
+            )
             clip_grad_norm_(
                 list(self.state_encoder.parameters())
                 + list(self.action_encoder.parameters())
@@ -237,11 +241,13 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
             total_kl_loss += kl_penalty.item()
             total_ratio += ratio.mean().item()
             total_behavior_coverage += coverage
+            total_grad_norm += grad_norm
 
         avg_surr = total_surr_loss / self.n_policy_updates
         avg_kl = total_kl_loss / self.n_policy_updates
         avg_ratio = total_ratio / self.n_policy_updates
         avg_behavior_coverage = total_behavior_coverage / self.n_policy_updates
+        avg_grad_norm = total_grad_norm / self.n_policy_updates
 
         return TrainMetrics(
             loss=avg_surr + self.kl_coeff * avg_kl,
@@ -252,6 +258,7 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
                 "mean_ratio": avg_ratio,
                 "behavior_log_prob_coverage": avg_behavior_coverage,
                 "behavior_fallback_fraction": 1.0 - avg_behavior_coverage,
+                "grad_norm": avg_grad_norm,
             },
         )
 

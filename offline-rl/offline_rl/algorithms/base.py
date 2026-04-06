@@ -142,6 +142,16 @@ class BaseOfflineAlgorithm(abc.ABC):
         for p, tp in zip(source.parameters(), target.parameters()):
             tp.data.copy_(tau * p.data + (1 - tau) * tp.data)
 
+    @staticmethod
+    def _compute_grad_norm(*modules: nn.Module) -> float:
+        """Compute total gradient L2 norm across modules (for logging)."""
+        total_norm_sq = 0.0
+        for m in modules:
+            for p in m.parameters():
+                if p.grad is not None:
+                    total_norm_sq += p.grad.data.norm(2).item() ** 2
+        return total_norm_sq ** 0.5
+
     @abc.abstractmethod
     def train_step(self, batch: TransitionBatch) -> TrainMetrics:
         """Perform a single training step on a batch of transitions."""
