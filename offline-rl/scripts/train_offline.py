@@ -4,7 +4,7 @@ Train offline RL algorithms on pre-collected trajectories.
 
 Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO,
                      Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, IPO, CPO, SimPO, DMPO, ETO,
-                     KTO, REBEL, DigiRL, VEM
+                     KTO, REBEL, DigiRL, Digi-Q, VEM
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500
@@ -60,6 +60,7 @@ from offline_rl.algorithms.eto import ETO
 from offline_rl.algorithms.kto import KTO
 from offline_rl.algorithms.rebel import REBEL
 from offline_rl.algorithms.digirl import DigiRL
+from offline_rl.algorithms.digiq import DigiQ
 from offline_rl.algorithms.vem import VEM
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -93,6 +94,7 @@ ALGO_MAP = {
     "kto": KTO,
     "rebel": REBEL,
     "digirl": DigiRL,
+    "digiq": DigiQ,
     "vem": VEM,
 }
 
@@ -413,6 +415,19 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             adv_threshold=args.digirl_adv_threshold,
             max_grad_norm=args.digirl_max_grad_norm,
         )
+    if args.algo == "digiq":
+        return DigiQ(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            best_of_n=args.digiq_best_of_n,
+            tau_target=args.digiq_tau_target,
+            max_grad_norm=args.digiq_max_grad_norm,
+        )
     if args.algo == "ipo":
         return IPO(
             replay_buffer=replay_buffer,
@@ -547,7 +562,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "vem"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "vem"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -654,6 +669,13 @@ def main():
                         help="DigiRL hard-filter threshold for AWR (default 0.1)")
     parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
                         help="DigiRL gradient clipping max norm (default 1.0)")
+    # Digi-Q specific
+    parser.add_argument("--digiq-best-of-n", type=int, default=16,
+                        help="Digi-Q number of candidate actions for Best-of-N policy extraction (default 16)")
+    parser.add_argument("--digiq-tau-target", type=float, default=0.005,
+                        help="Digi-Q soft update rate for target Q/V networks (default 0.005)")
+    parser.add_argument("--digiq-max-grad-norm", type=float, default=1.0,
+                        help="Digi-Q gradient clipping max norm (default 1.0)")
     # IPO specific
     parser.add_argument("--ipo-beta", type=float, default=0.1,
                         help="IPO temperature beta (target margin = 1/(2*beta), default 0.1)")

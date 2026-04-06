@@ -1,16 +1,16 @@
 """
 Pre-compute advantage weights from offline RL critic for LLM fine-tuning.
 
-This script trains one of 27 offline RL critics on trajectory data, then
+This script trains one of 28 offline RL critics on trajectory data, then
 exports per-(trajectory, step) advantage/value weights as a JSON file for use
 by the custom ``offline_loss.py`` function during slime training.
 
-All 27 algorithms supported:
+All 28 algorithms supported:
     iql     cql     awac    grpo    td3bc   edac
     dt      crr     rwft    oreo    sorl    arpo
     retrospex  webrl  glider
     archer  bcq     dpo     ipo     cpo     simpo
-    dmpo    eto     kto     rebel   digirl  vem
+    dmpo    eto     kto     rebel   digirl  digiq   vem
 
 Usage:
     python compute_weights.py --algo iql --data trajectories.jsonl --output weights.json
@@ -33,6 +33,7 @@ Advantage dispatch:
         IPO, CPO, DMPO, ETO                 → policy log-prob proxy
         SimPO                               → scaled log-prob (no ref model)
         DigiRL                             → V_step success probability ∈ [0, 1]
+        Digi-Q                             → Q(s,a) value from TD-learned Q-function
         VEM                                → VEM-predicted state-action value
 """
 
@@ -187,6 +188,15 @@ def _build_algo(args, buffer, device):
             max_grad_norm=args.digirl_max_grad_norm,
         )
 
+    if args.algo == "digiq":
+        from offline_rl.algorithms.digiq import DigiQ
+        return DigiQ(
+            **common,
+            best_of_n=args.digiq_best_of_n,
+            tau_target=args.digiq_tau_target,
+            max_grad_norm=args.digiq_max_grad_norm,
+        )
+
     if args.algo == "ipo":
         from offline_rl.algorithms.ipo import IPO
         return IPO(**common, beta=args.ipo_beta)
@@ -238,7 +248,7 @@ def main():
             "dt", "crr", "rwft", "oreo", "sorl", "arpo",
             "retrospex", "webrl", "glider",
             "archer", "kto", "dpo", "ipo", "cpo", "simpo",
-            "dmpo", "eto", "bcq", "rebel", "digirl", "vem",
+            "dmpo", "eto", "bcq", "rebel", "digirl", "digiq", "vem",
         ],
         default="iql",
         help="Offline RL algorithm to train the critic (default: iql)",
@@ -293,6 +303,13 @@ def main():
                         help="DigiRL hard-filter advantage threshold (default 0.1)")
     parser.add_argument("--digirl-max-grad-norm", type=float, default=1.0,
                         help="DigiRL gradient clipping max norm (default 1.0)")
+    # Digi-Q specific
+    parser.add_argument("--digiq-best-of-n", type=int, default=16,
+                        help="Digi-Q number of candidate actions for Best-of-N (default 16)")
+    parser.add_argument("--digiq-tau-target", type=float, default=0.005,
+                        help="Digi-Q soft update rate for target networks (default 0.005)")
+    parser.add_argument("--digiq-max-grad-norm", type=float, default=1.0,
+                        help="Digi-Q gradient clipping max norm (default 1.0)")
     # IPO-specific
     parser.add_argument("--ipo-beta", type=float, default=0.1,
                         help="IPO temperature beta (default 0.1)")

@@ -107,6 +107,10 @@ def _make_args(algo: str) -> argparse.Namespace:
         digirl_lam=0.5,
         digirl_adv_threshold=0.1,
         digirl_max_grad_norm=1.0,
+        # Digi-Q
+        digiq_best_of_n=4,
+        digiq_tau_target=0.005,
+        digiq_max_grad_norm=1.0,
         # IPO
         ipo_beta=0.1,
         # CPO
@@ -710,6 +714,30 @@ def test_build_digirl_trains_with_dr_advantage(tmp_dir):
     assert q_vals.shape == (2,)
     # V_step returns sigmoid ∈ (0, 1)
     assert all(0.0 <= v <= 1.0 for v in q_vals.tolist())
+
+
+# ================== Digi-Q tests ==========================================
+
+def test_build_digiq_trains_with_td_q_and_best_of_n(tmp_dir):
+    """Digi-Q builds, trains TD Q/V + Best-of-N actor, returns Q(s,a)."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("digiq")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Digi-Q specific extra keys
+    assert "q_td_loss" in metrics[0].extra
+    assert "v_td_loss" in metrics[0].extra
+    assert "actor_loss" in metrics[0].extra
+    # Q-values (TD-learned Q-function)
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+    # Repr fine-tuning triggers on first step only
+    assert "repr_bce_loss" in metrics[0].extra
 
 
 # ================== IPO tests =============================================

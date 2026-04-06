@@ -33,6 +33,7 @@ from .eto import ETO
 from .bcq import BCQ, BehaviorCloningNetwork
 from .rebel import REBEL
 from .digirl import DigiRL, StepValueNet, InstructValueNet
+from .digiq import DigiQ, QFunctionNet, VFunctionNet, RepresentationHead
 from .vem import VEM, ValueEnvironmentModel
 
 __all__ = [
@@ -77,6 +78,10 @@ __all__ = [
     "DigiRL",
     "StepValueNet",
     "InstructValueNet",
+    "DigiQ",
+    "QFunctionNet",
+    "VFunctionNet",
+    "RepresentationHead",
     "VEM",
     "ValueEnvironmentModel",
 ]

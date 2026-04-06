@@ -282,7 +282,7 @@ from preference optimization and agent RL literature.
 ### compute_weights.py Updates
 
 **Previous**: 21 algorithms
-**Now**: 27 algorithms
+**Now**: 28 algorithms
 
 1. **`_build_algo()`**: Added 6 new branches (ipo, cpo, simpo, dmpo, eto, vem).
 2. **Advantage dispatch**:
