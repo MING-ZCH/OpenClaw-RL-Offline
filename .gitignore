@@ -8,6 +8,13 @@ __pycache__/
 logs
 .DS_Store
 
+# Backup files
+*.bak
+*.bak[0-9]*
+
+# Windows PowerShell scripts (dev-only, use .sh for CI/CD)
+*.ps1
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
