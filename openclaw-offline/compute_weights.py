@@ -379,6 +379,11 @@ def main():
     # EDAC-specific
     parser.add_argument("--edac-n-critics", type=int, default=5,
                         help="EDAC ensemble size (default 5; paper uses 10)")
+    # Warm-start / checkpoint
+    parser.add_argument("--checkpoint-path", type=str, default=None,
+                        help="Path to a saved checkpoint to warm-start from (loads before training)")
+    parser.add_argument("--save-checkpoint", type=str, default=None,
+                        help="Path to save the trained critic checkpoint after training")
     args = parser.parse_args()
 
     # Load data
@@ -404,11 +409,24 @@ def main():
     logger.info("Building %s critic on device=%s", args.algo.upper(), args.device)
     algo = _build_algo(args, buffer, args.device)
 
+    # Warm-start from checkpoint if provided
+    if args.checkpoint_path:
+        logger.info("Loading checkpoint from %s", args.checkpoint_path)
+        algo.load(args.checkpoint_path)
+
     # Train critic
     logger.info("Training %s for %d steps...", args.algo.upper(), args.train_steps)
     metrics = algo.train(num_steps=args.train_steps, batch_size=args.batch_size, log_interval=100)
     final_loss = metrics[-1].loss if metrics else float("nan")
     logger.info("Training complete. Final loss: %.4f", final_loss)
+
+    # Save checkpoint if requested
+    if args.save_checkpoint:
+        ckpt_dir = os.path.dirname(os.path.abspath(args.save_checkpoint))
+        if ckpt_dir:
+            os.makedirs(ckpt_dir, exist_ok=True)
+        algo.save(args.save_checkpoint)
+        logger.info("Saved critic checkpoint to %s", args.save_checkpoint)
 
     # Extract advantages for all transitions
     logger.info("Computing advantage weights for all %d trajectories...", count)
