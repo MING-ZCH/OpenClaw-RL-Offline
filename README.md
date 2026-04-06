@@ -22,7 +22,7 @@ Documentation:
 flowchart LR
 	A[Benchmark tasks or gui-rl results] --> B[TrajectoryStore JSONL]
 	B --> C[ReplayBuffer and TransitionBatch]
-	C --> D[IQL / CQL / AWAC / GRPO / ... 30 algorithms]
+	C --> D[IQL / CQL / AWAC / GRPO / ... 32 algorithms]
 	D --> E[Weights, diagnostics, replay metrics]
 	B --> F[openclaw-offline replay path]
 	E --> F
@@ -74,6 +74,8 @@ flowchart LR
 | `DMPO` | Real lightweight baseline | Direct multi-turn preference optimization (Shi et al., EMNLP 2024, arXiv 2406.14868); length-normalized DPO for multi-turn agent trajectories. |
 | `ETO` | Real lightweight baseline | Exploration-based trajectory optimization (Song et al., ACL 2024, arXiv 2403.02502); exploration-weighted DPO; upweights near-miss failures. |
 | `VEM` | Real lightweight baseline | Value environment model (Song et al., Microsoft 2025, arXiv 2502.18906); MLP value model + AWR policy; two-stage training. |
+| `ORPO` | Monolithic preference optimization (reference-free) | Odds Ratio Preference Optimization (Hong et al. 2024, arXiv 2403.07691); L_ORPO = L_SFT + λ·L_OR where L_OR = −log σ(log(odds_w/odds_l)); no reference model needed. |
+| `RRHF` | Ranking-based alignment without PPO | Rank Responses to align Human Feedback (Yuan et al., NeurIPS 2023, arXiv 2304.05302); hinge ranking loss on conditional log-probs aligned with reward scores + SFT anchor. |
 | `Off-Policy GRPO` | Real replay-based objective | The trainer now uses replayed behavior-policy log-probs when datasets provide them, and falls back to reference-policy log-probs for legacy data. |
 | `openclaw-offline` bridge | Real | Offline trajectories are replayed into the original slime training interfaces instead of being handled by a separate toy trainer. |
 | Benchmark adapters | Mixed | Mock adapters for OSWorld, AndroidWorld, WebArena, and AlfWorld are present for CPU validation; real execution still depends on external benchmark stacks. |
@@ -86,7 +88,7 @@ This repository does not claim to replace the upstream full training runtime. It
 | Goal | Start here | Why |
 |---|---|---|
 | Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
-| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, KTO, REBEL, DigiRL, DigiQ, Agent Q, ILQL, IPO, CPO, SimPO, DMPO, ETO, or VEM on replay data without entering the full slime stack. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, KTO, REBEL, DigiRL, DigiQ, Agent Q, ILQL, IPO, CPO, SimPO, DMPO, ETO, VEM, ORPO, or RRHF on replay data without entering the full slime stack. |
 | Benchmark multiple algorithms | `offline-rl/scripts/evaluate_algorithms.py` | Trains all specified algorithms and outputs a comparison table (final loss, trend, Q stats, time) with optional CSV/Markdown export. |
 | Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
 | Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |

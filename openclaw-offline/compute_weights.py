@@ -1,17 +1,17 @@
 """
 Pre-compute advantage weights from offline RL critic for LLM fine-tuning.
 
-This script trains one of 30 offline RL critics on trajectory data, then
+This script trains one of 32 offline RL critics on trajectory data, then
 exports per-(trajectory, step) advantage/value weights as a JSON file for use
 by the custom ``offline_loss.py`` function during slime training.
 
-All 30 algorithms supported:
+All 32 algorithms supported:
     iql     cql     awac    grpo    td3bc   edac
     dt      crr     rwft    oreo    sorl    arpo
     retrospex  webrl  glider
     archer  bcq     dpo     ipo     cpo     simpo
     dmpo    eto     kto     rebel   digirl  digiq
-    agentq  ilql    vem
+    agentq  ilql    vem     orpo    rrhf
 
 Usage:
     python compute_weights.py --algo iql --data trajectories.jsonl --output weights.json
@@ -243,6 +243,16 @@ def _build_algo(args, buffer, device):
         from offline_rl.algorithms.vem import VEM
         return VEM(**common, beta=args.vem_beta, alpha_awr=args.vem_alpha_awr)
 
+    if args.algo == "orpo":
+        from offline_rl.algorithms.orpo import ORPO
+        return ORPO(**common, lam=getattr(args, "orpo_lam", 0.5),
+                     pairing_threshold=getattr(args, "orpo_threshold", 0.5))
+
+    if args.algo == "rrhf":
+        from offline_rl.algorithms.rrhf import RRHF
+        return RRHF(**common, alpha_sft=getattr(args, "rrhf_alpha_sft", 1.0),
+                     margin=getattr(args, "rrhf_margin", 0.0))
+
     raise ValueError("Unknown algorithm: %s" % args.algo)
 
 
@@ -271,6 +281,7 @@ def main():
             "retrospex", "webrl", "glider",
             "archer", "kto", "dpo", "ipo", "cpo", "simpo",
             "dmpo", "eto", "bcq", "rebel", "digirl", "digiq", "vem",
+            "orpo", "rrhf",
         ],
         default="iql",
         help="Offline RL algorithm to train the critic (default: iql)",

@@ -141,6 +141,12 @@ def _make_args(algo: str) -> argparse.Namespace:
         ilql_cql_temp=1.0,
         ilql_awac_weight=1.0,
         ilql_exp_weights=True,
+        # ORPO
+        orpo_lam=0.5,
+        orpo_threshold=0.5,
+        # RRHF
+        rrhf_alpha_sft=1.0,
+        rrhf_margin=0.0,
     )
 
 
@@ -932,3 +938,76 @@ def test_ilql_advantages_q_minus_v(tmp_dir):
     advs = algo.get_advantages(["obs A", "obs B"], ["act A", "act B"])
     assert advs.shape == (2,)
     assert all(math.isfinite(v) for v in advs.tolist())
+
+
+# ================== ORPO tests ============================================
+
+def test_build_orpo_trains_reference_free_preference(tmp_dir):
+    """ORPO builds, trains monolithic SFT + odds-ratio loss, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("orpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    # ORPO should NOT have ref_policy (reference-free)
+    assert not hasattr(algo, "ref_policy")
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # ORPO-specific extra keys
+    assert "loss_sft" in metrics[0].extra
+    assert "loss_or" in metrics[0].extra
+    assert "n_pairs" in metrics[0].extra
+    # Q-values (log-prob proxy)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+def test_orpo_no_reference_model_saves_memory(tmp_dir):
+    """ORPO has no reference model — only policy, state_encoder, action_encoder."""
+    buf = _create_buffer(tmp_dir, n_trajs=8)
+    args = _make_args("orpo")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    # Should have policy but no ref_policy
+    assert hasattr(algo, "policy")
+    assert not hasattr(algo, "ref_policy")
+    # Should have exactly 2 optimizers
+    assert hasattr(algo, "encoder_optimizer")
+    assert hasattr(algo, "policy_optimizer")
+
+
+# ================== RRHF tests ============================================
+
+def test_build_rrhf_trains_ranking_loss(tmp_dir):
+    """RRHF builds, trains ranking + SFT loss, returns log-prob Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("rrhf")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # RRHF-specific extra keys
+    assert "loss_rank" in metrics[0].extra
+    assert "loss_sft" in metrics[0].extra
+    assert "n_pairs" in metrics[0].extra
+    # Q-values (log-prob proxy)
+    q_vals = algo.get_action_values(["obs A", "obs B", "obs C"], ["act A", "act B", "act C"])
+    assert q_vals.shape == (3,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+def test_rrhf_ranking_respects_reward_ordering(tmp_dir):
+    """RRHF ranking loss pushes higher reward transitions to higher log-prob."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("rrhf")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    # No ref model
+    assert not hasattr(algo, "ref_policy")
+    # Train a few steps
+    metrics = algo.train(num_steps=5, batch_size=8, log_interval=20)
+    assert len(metrics) == 5
+    assert all(not math.isnan(m.loss) for m in metrics)

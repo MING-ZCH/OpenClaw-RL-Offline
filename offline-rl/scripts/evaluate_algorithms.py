@@ -8,7 +8,7 @@ prints a comparison table.
 
 Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl, arpo,
                      retrospex, webrl, glider, archer, bcq, dpo, ipo, cpo, simpo, dmpo, eto,
-                     kto, rebel, digirl, digiq, agentq, ilql, vem
+                     kto, rebel, digirl, digiq, agentq, ilql, vem, orpo, rrhf
 
 Usage:
     python scripts/evaluate_algorithms.py --data data/trajs.jsonl --algos iql cql awac crr oreo
@@ -66,6 +66,8 @@ from offline_rl.algorithms.digiq import DigiQ
 from offline_rl.algorithms.agent_q import AgentQ
 from offline_rl.algorithms.ilql import ILQL
 from offline_rl.algorithms.vem import VEM
+from offline_rl.algorithms.orpo import ORPO
+from offline_rl.algorithms.rrhf import RRHF
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -73,7 +75,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem", "orpo", "rrhf"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -106,6 +108,8 @@ _ALGO_REFS = {
     "agentq": "Putta et al. 2024 arXiv 2408.07199",
     "ilql": "Snell et al. ICLR 2023 arXiv 2206.11871",
     "vem": "Song et al. Microsoft 2025 arXiv 2502.18906",
+    "orpo": "Hong et al. 2024 arXiv 2403.07691",
+    "rrhf": "Yuan et al. NeurIPS 2023 arXiv 2304.05302",
 }
 
 
@@ -189,6 +193,10 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
         return ILQL(**common, tau=0.7, beta=3.0, cql_alpha=1.0, cql_temp=1.0)
     if name == "vem":
         return VEM(**common, beta=1.0, alpha_awr=1.0)
+    if name == "orpo":
+        return ORPO(**common, lam=0.5, pairing_threshold=0.5)
+    if name == "rrhf":
+        return RRHF(**common, alpha_sft=1.0, margin=0.0)
     raise ValueError("Unknown algorithm: %s" % name)
 
 

@@ -37,6 +37,8 @@ from .digiq import DigiQ, QFunctionNet, VFunctionNet, RepresentationHead
 from .agent_q import AgentQ, CriticNetwork
 from .ilql import ILQL
 from .vem import VEM, ValueEnvironmentModel
+from .orpo import ORPO
+from .rrhf import RRHF
 
 __all__ = [
     "BaseOfflineAlgorithm",
@@ -89,4 +91,6 @@ __all__ = [
     "ILQL",
     "VEM",
     "ValueEnvironmentModel",
+    "ORPO",
+    "RRHF",
 ]

@@ -4,7 +4,7 @@ Train offline RL algorithms on pre-collected trajectories.
 
 Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO,
                      Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, IPO, CPO, SimPO, DMPO, ETO,
-                     KTO, REBEL, DigiRL, Digi-Q, Agent Q, ILQL, VEM
+                     KTO, REBEL, DigiRL, Digi-Q, Agent Q, ILQL, VEM, ORPO, RRHF
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500
@@ -64,6 +64,8 @@ from offline_rl.algorithms.digiq import DigiQ
 from offline_rl.algorithms.agent_q import AgentQ
 from offline_rl.algorithms.ilql import ILQL
 from offline_rl.algorithms.vem import VEM
+from offline_rl.algorithms.orpo import ORPO
+from offline_rl.algorithms.rrhf import RRHF
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -100,6 +102,8 @@ ALGO_MAP = {
     "agentq": AgentQ,
     "ilql": ILQL,
     "vem": VEM,
+    "orpo": ORPO,
+    "rrhf": RRHF,
 }
 
 
@@ -533,6 +537,30 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             beta=args.vem_beta,
             alpha_awr=args.vem_alpha_awr,
         )
+    if args.algo == "orpo":
+        return ORPO(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            lam=args.orpo_lam,
+            pairing_threshold=args.orpo_threshold,
+        )
+    if args.algo == "rrhf":
+        return RRHF(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            alpha_sft=args.rrhf_alpha_sft,
+            margin=args.rrhf_margin,
+        )
     raise ValueError("Unknown algo: %s" % args.algo)
 
 
@@ -597,7 +625,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem", "orpo", "rrhf"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -763,6 +791,16 @@ def main():
                         help="VEM AWR temperature for advantage weighting (default 1.0)")
     parser.add_argument("--vem-alpha-awr", type=float, default=1.0,
                         help="VEM AWR loss weight relative to VEM MSE loss (default 1.0)")
+    # ORPO specific
+    parser.add_argument("--orpo-lam", type=float, default=0.5,
+                        help="ORPO odds-ratio loss weight lambda (default 0.5)")
+    parser.add_argument("--orpo-threshold", type=float, default=0.5,
+                        help="ORPO winner/loser pairing threshold on outcome_reward (default 0.5)")
+    # RRHF specific
+    parser.add_argument("--rrhf-alpha-sft", type=float, default=1.0,
+                        help="RRHF SFT anchor loss weight (default 1.0)")
+    parser.add_argument("--rrhf-margin", type=float, default=0.0,
+                        help="RRHF hinge ranking margin (default 0.0)")
     # Performance optimization
     parser.add_argument("--amp", action="store_true",
                         help="Enable AMP mixed precision (float16/bfloat16). Auto-disabled on CPU.")

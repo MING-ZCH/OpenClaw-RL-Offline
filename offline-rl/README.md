@@ -60,6 +60,8 @@ flowchart LR
 - `DMPO` (Shi et al., EMNLP 2024, arXiv 2406.14868): direct multi-turn preference optimization; length-normalized DPO for multi-turn agent trajectories; applies `weight = 1/len^p` normalization to compensate for trajectory length bias.
 - `ETO` (Song et al., ACL 2024, arXiv 2403.02502): exploration-based trajectory optimization; exploration-weighted DPO that upweights near-miss failures via `explore_weight = exp(α · r_loser)`; normalized by mean for gradient stability.
 - `VEM` (Song et al., Microsoft 2025, arXiv 2502.18906): value environment model; two-stage training — MLP value model trained on detached encoder outputs, then AWR policy loss with encoder gradients; three optimizer groups (encoder, VEM, policy).
+- `ORPO` (Hong et al., 2024, arXiv 2403.07691): odds ratio preference optimization; monolithic alignment without reference model; L_ORPO = L_SFT + λ·L_OR where L_OR = −log σ(log(odds_w/odds_l)); reference-free saves 50% memory.
+- `RRHF` (Yuan et al., NeurIPS 2023, arXiv 2304.05302): rank responses to align human feedback; hinge ranking loss on conditional log-probs aligned with reward scores; combined with SFT anchor on best response; simpler than PPO (1-2 models vs 4).
 
 ### Benchmark Adapters
 
@@ -149,6 +151,8 @@ python scripts/train_offline.py --algo simpo --data data/osworld_trajs.jsonl --s
 python scripts/train_offline.py --algo dmpo --data data/osworld_trajs.jsonl --steps 500 --dmpo-beta 0.1 --dmpo-length-power 0.5
 python scripts/train_offline.py --algo eto --data data/osworld_trajs.jsonl --steps 500 --eto-beta 0.1 --eto-explore-alpha 1.0
 python scripts/train_offline.py --algo vem --data data/osworld_trajs.jsonl --steps 500 --vem-beta 1.0 --vem-alpha-awr 1.0
+python scripts/train_offline.py --algo orpo --data data/osworld_trajs.jsonl --steps 500 --orpo-lam 0.5 --orpo-threshold 0.5
+python scripts/train_offline.py --algo rrhf --data data/osworld_trajs.jsonl --steps 500 --rrhf-alpha-sft 1.0 --rrhf-margin 0.0
 python scripts/train_offline.py --algo grpo --data data/osworld_trajs.jsonl --steps 200 --n-policy-updates 2 --device cuda
 
 # Compare multiple algorithms side-by-side
@@ -221,6 +225,8 @@ If none of these fields are present, GRPO falls back to the frozen reference pol
 | `DMPO` | Multi-turn DPO with length normalization (Shi et al. EMNLP 2024) | Length-normalized DPO; weight=1/len^p; compensates trajectory length bias for agents. |
 | `ETO` | Exploration-weighted DPO for agent tasks (Song et al. ACL 2024) | Upweights near-miss failures via exp(α·r_loser); mean-normalized for stability. |
 | `VEM` | Value environment model + AWR policy (Song et al. Microsoft 2025) | Two-stage: MLP value model on detached features, then AWR policy; 3 optimizer groups. |
+| `ORPO` | Odds ratio preference optimization (Hong et al. 2024) | Monolithic SFT+alignment; no reference model; L = L_SFT + λ·L_OR; reference-free saves 50% memory. |
+| `RRHF` | Rank responses to align human feedback (Yuan et al. NeurIPS 2023) | Hinge ranking loss on log-probs + SFT anchor; simpler than PPO; 1-2 models vs 4. |
 | `GRPO` | Replay-based policy optimization aligned with OpenClaw-style updates | Most useful when replay data already contains policy-side log-prob information. |
 
 ## Relation To openclaw-offline
