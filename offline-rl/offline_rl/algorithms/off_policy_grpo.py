@@ -131,15 +131,33 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
         a = self.action_encoder(action_ids)
         return s, a
 
-    def _compute_grpo_advantages(self, rewards: torch.Tensor) -> torch.Tensor:
+    def _compute_grpo_advantages(
+        self,
+        rewards: torch.Tensor,
+        group_ids: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
         Group-relative advantage normalization (GRPO).
 
-        A_i = (R_i - mean(R)) / (std(R) + eps)
+        When group_ids is provided, normalizes within each group:
+            A_i = (R_i - mean(R_group)) / (std(R_group) + eps)
+        Otherwise falls back to batch-level normalization.
         """
-        mean_r = rewards.mean()
-        std_r = rewards.std() + 1e-8
-        return (rewards - mean_r) / std_r
+        if group_ids is None:
+            mean_r = rewards.mean()
+            std_r = rewards.std() + 1e-8
+            return (rewards - mean_r) / std_r
+
+        # Intra-group normalization (correct GRPO)
+        advantages = torch.zeros_like(rewards)
+        unique_groups = group_ids.unique()
+        for gid in unique_groups:
+            mask = group_ids == gid
+            group_rewards = rewards[mask]
+            mean_r = group_rewards.mean()
+            std_r = group_rewards.std() + 1e-8
+            advantages[mask] = (group_rewards - mean_r) / std_r
+        return advantages
 
     def _get_behavior_log_probs(
         self,
@@ -169,7 +187,10 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
         Multiple gradient steps with the same batch (n_policy_updates).
         """
         rewards = torch.as_tensor(batch.rewards, dtype=torch.float32).to(self.device)
-        advantages = self._compute_grpo_advantages(rewards)
+        group_ids = None
+        if batch.group_ids is not None:
+            group_ids = torch.as_tensor(batch.group_ids, dtype=torch.long).to(self.device)
+        advantages = self._compute_grpo_advantages(rewards, group_ids=group_ids)
 
         total_surr_loss = 0.0
         total_kl_loss = 0.0
@@ -244,6 +265,42 @@ class OffPolicyGRPO(BaseOfflineAlgorithm):
             s = self.state_encoder(state_ids)
             a = self.action_encoder(action_ids)
             return self.policy(s, a)
+
+    def train(
+        self,
+        num_steps: int = 1000,
+        batch_size: int = 64,
+        n_groups: int = 8,
+        log_interval: int = 100,
+    ) -> list[TrainMetrics]:
+        """Run offline GRPO training with group-relative sampling.
+
+        Uses ``sample_transition_groups`` to ensure advantages are computed
+        within instruction groups.  Falls back to ``sample_transitions`` when
+        group sampling is unavailable (e.g. single-instruction datasets).
+
+        Args:
+            num_steps: Number of training iterations.
+            batch_size: Batch size for fallback uniform sampling.
+            n_groups: Number of instruction groups per step.
+            log_interval: Steps between log messages.
+        """
+        all_metrics: list[TrainMetrics] = []
+        for step in range(num_steps):
+            try:
+                batch = self.replay_buffer.sample_transition_groups(
+                    n_groups=n_groups, min_group_size=2,
+                )
+            except (ValueError, AttributeError):
+                batch = self.replay_buffer.sample_transitions(batch_size)
+            metrics = self.train_step(batch)
+            all_metrics.append(metrics)
+
+            if (step + 1) % log_interval == 0:
+                avg_loss = sum(m.loss for m in all_metrics[-log_interval:]) / log_interval
+                logger.info("Step %d/%d: avg_loss=%.4f", step + 1, num_steps, avg_loss)
+
+        return all_metrics
 
     def update_reference_policy(self):
         """Copy current policy to reference policy (periodic refresh)."""

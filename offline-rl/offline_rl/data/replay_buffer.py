@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import random
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -58,6 +59,7 @@ class TransitionBatch:
     dones: np.ndarray
     outcome_rewards: np.ndarray
     behavior_log_probs: np.ndarray
+    group_ids: Optional[np.ndarray] = None  # instruction group indices for GRPO
 
     @property
     def batch_size(self) -> int:
@@ -219,6 +221,13 @@ class ReplayBuffer:
         self._trajectories: list[Trajectory] = []
         self._transitions: list[Transition] = []
         self._priorities: Optional[np.ndarray] = None
+        self._instruction_index: dict[str, list[int]] = defaultdict(list)
+
+    def _rebuild_instruction_index(self) -> None:
+        """Rebuild the instruction -> transition indices mapping."""
+        self._instruction_index = defaultdict(list)
+        for i, t in enumerate(self._transitions):
+            self._instruction_index[t.instruction].append(i)
 
     def load_from_store(
         self,
@@ -242,6 +251,7 @@ class ReplayBuffer:
                 break
 
         self._priorities = None  # Reset priorities
+        self._rebuild_instruction_index()
         logger.info(
             "Loaded %d trajectories (%d transitions) into replay buffer",
             loaded, len(self._transitions),
@@ -258,9 +268,14 @@ class ReplayBuffer:
                 t for t in self._transitions
                 if t.trajectory_id != evicted.trajectory_id
             ]
+            self._rebuild_instruction_index()
 
         self._trajectories.append(traj)
-        self._transitions.extend(_trajectory_to_transitions(traj))
+        new_transitions = _trajectory_to_transitions(traj)
+        base_idx = len(self._transitions)
+        self._transitions.extend(new_transitions)
+        for i, t in enumerate(new_transitions):
+            self._instruction_index[t.instruction].append(base_idx + i)
         self._priorities = None
 
         if self.store is not None:
@@ -314,6 +329,60 @@ class ReplayBuffer:
         batch = _build_transition_batch(selected)
 
         return batch, weights.astype(np.float32), indices
+
+    def sample_transition_groups(
+        self,
+        n_groups: int,
+        min_group_size: int = 2,
+    ) -> TransitionBatch:
+        """
+        Sample transitions grouped by instruction for GRPO-style training.
+
+        GRPO requires intra-group advantage normalization: advantages are
+        computed relative to other outcomes for the *same* instruction.
+        This method groups transitions by instruction and samples n_groups
+        instruction groups.
+
+        Args:
+            n_groups: Number of instruction groups to sample.
+            min_group_size: Minimum transitions per group to be eligible.
+
+        Returns:
+            TransitionBatch with ``group_ids`` populated. Each entry in
+            ``group_ids`` is an integer identifying the instruction group.
+            If fewer than 2 eligible groups exist, falls back to batch-level
+            grouping (all transitions share group_id=0).
+        """
+        if not self._transitions:
+            raise ValueError("Replay buffer is empty")
+
+        # Filter to groups with enough transitions
+        eligible = [
+            (instr, idxs)
+            for instr, idxs in self._instruction_index.items()
+            if len(idxs) >= min_group_size
+        ]
+
+        if len(eligible) < 2:
+            # Fallback: batch-level normalization (all same group)
+            batch_size = n_groups * max(min_group_size, 2)
+            batch = self.sample_transitions(batch_size)
+            batch.group_ids = np.zeros(batch.batch_size, dtype=np.int64)
+            return batch
+
+        n_groups = min(n_groups, len(eligible))
+        selected_groups = self.rng.sample(eligible, n_groups)
+
+        all_transitions = []
+        group_ids = []
+        for gid, (_instr, indices) in enumerate(selected_groups):
+            transitions = [self._transitions[i] for i in indices]
+            all_transitions.extend(transitions)
+            group_ids.extend([gid] * len(transitions))
+
+        batch = _build_transition_batch(all_transitions)
+        batch.group_ids = np.array(group_ids, dtype=np.int64)
+        return batch
 
     def update_priorities(self, indices: np.ndarray, new_priorities: np.ndarray) -> None:
         """Update priorities for sampled transitions (for PER)."""

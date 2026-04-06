@@ -246,7 +246,10 @@ class ARPO(OffPolicyGRPO):
 
         # --- 3. GRPO advantages on (augmented) batch ------------------
         rewards_t = torch.as_tensor(outcome_rewards, dtype=torch.float32).to(self.device)
-        advantages = self._compute_grpo_advantages(rewards_t)
+        group_ids = None
+        if batch.group_ids is not None:
+            group_ids = torch.as_tensor(batch.group_ids, dtype=torch.long).to(self.device)
+        advantages = self._compute_grpo_advantages(rewards_t, group_ids=group_ids)
 
         # --- 4. n_policy_updates DAPO steps ---------------------------
         total_loss = 0.0

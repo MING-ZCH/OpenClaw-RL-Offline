@@ -362,3 +362,106 @@ class TestOffPolicyGRPO:
         v1 = grpo.get_action_values(["state"], ["action"])
         v2 = grpo2.get_action_values(["state"], ["action"])
         assert torch.allclose(v1, v2, atol=1e-5)
+
+
+def _create_grouped_buffer(tmp_dir: str, n_instructions: int = 5, trajs_per_inst: int = 4) -> ReplayBuffer:
+    """Create a buffer where multiple trajectories share the same instruction."""
+    path = os.path.join(tmp_dir, "grouped_store.jsonl")
+    store = TrajectoryStore(path)
+    idx = 0
+    for inst_idx in range(n_instructions):
+        for t_idx in range(trajs_per_inst):
+            traj = _make_trajectory(
+                traj_id=f"g{inst_idx}_t{t_idx}",
+                domain="os",
+                n_steps=3 + t_idx % 3,
+                success=(t_idx % 2 == 0),
+            )
+            # Override instruction so multiple trajectories share the same one
+            traj.instruction = f"Shared task {inst_idx}"
+            store.append(traj)
+            idx += 1
+    buf = ReplayBuffer(store=store, max_trajectories=idx)
+    buf.load_from_store()
+    return buf
+
+
+class TestGRPOGroupSampling:
+    """Test GRPO group-relative advantage computation."""
+
+    def test_sample_transition_groups_basic(self, tmp_dir):
+        buf = _create_grouped_buffer(tmp_dir)
+        batch = buf.sample_transition_groups(n_groups=3, min_group_size=2)
+        assert batch.group_ids is not None
+        unique_groups = set(batch.group_ids.tolist())
+        assert len(unique_groups) == 3
+
+    def test_sample_transition_groups_all_same_group(self, tmp_dir):
+        buf = _create_grouped_buffer(tmp_dir)
+        batch = buf.sample_transition_groups(n_groups=3, min_group_size=2)
+        # Within each group, all instructions should be the same
+        for gid in set(batch.group_ids.tolist()):
+            mask = batch.group_ids == gid
+            group_instructions = [
+                batch.instructions[i] for i, m in enumerate(mask) if m
+            ]
+            assert len(set(group_instructions)) == 1
+
+    def test_group_advantages_differ_from_batch(self, tmp_dir):
+        buf = _create_grouped_buffer(tmp_dir)
+        grpo = OffPolicyGRPO(
+            replay_buffer=buf, state_dim=64, action_dim=64, hidden_dim=64,
+            device="cpu",
+        )
+        batch = buf.sample_transition_groups(n_groups=3, min_group_size=2)
+        rewards = torch.as_tensor(batch.rewards, dtype=torch.float32)
+        group_ids = torch.as_tensor(batch.group_ids, dtype=torch.long)
+
+        adv_grouped = grpo._compute_grpo_advantages(rewards, group_ids=group_ids)
+        adv_batch = grpo._compute_grpo_advantages(rewards, group_ids=None)
+
+        # With diverse groups, group-relative advantages should differ
+        assert adv_grouped.shape == adv_batch.shape
+        # They shouldn't be identical (unless by sheer coincidence)
+        assert not torch.allclose(adv_grouped, adv_batch, atol=1e-3)
+
+    def test_group_advantages_zero_mean_per_group(self, tmp_dir):
+        buf = _create_grouped_buffer(tmp_dir)
+        grpo = OffPolicyGRPO(
+            replay_buffer=buf, state_dim=64, action_dim=64, hidden_dim=64,
+            device="cpu",
+        )
+        batch = buf.sample_transition_groups(n_groups=3, min_group_size=2)
+        rewards = torch.as_tensor(batch.rewards, dtype=torch.float32)
+        group_ids = torch.as_tensor(batch.group_ids, dtype=torch.long)
+
+        advantages = grpo._compute_grpo_advantages(rewards, group_ids=group_ids)
+
+        # Each group's advantages should have zero mean
+        for gid in group_ids.unique():
+            mask = group_ids == gid
+            group_adv = advantages[mask]
+            assert abs(group_adv.mean().item()) < 1e-5
+
+    def test_train_with_group_sampling(self, tmp_dir):
+        buf = _create_grouped_buffer(tmp_dir)
+        grpo = OffPolicyGRPO(
+            replay_buffer=buf, state_dim=64, action_dim=64, hidden_dim=64,
+            n_policy_updates=2, device="cpu",
+        )
+        all_metrics = grpo.train(num_steps=5, batch_size=8, n_groups=3, log_interval=100)
+        assert len(all_metrics) == 5
+        for m in all_metrics:
+            assert isinstance(m, TrainMetrics)
+            assert "surrogate_loss" in m.extra
+
+    def test_fallback_to_batch_when_no_groups(self, tmp_dir):
+        """With unique instructions per trajectory, group sampling falls back gracefully."""
+        buf = _create_buffer_with_data(tmp_dir)
+        grpo = OffPolicyGRPO(
+            replay_buffer=buf, state_dim=64, action_dim=64, hidden_dim=64,
+            n_policy_updates=2, device="cpu",
+        )
+        # This should not raise — falls back to batch-level normalization
+        all_metrics = grpo.train(num_steps=3, batch_size=8, n_groups=4, log_interval=100)
+        assert len(all_metrics) == 3

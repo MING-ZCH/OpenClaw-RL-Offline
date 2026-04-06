@@ -242,7 +242,10 @@ class WebRL(OffPolicyGRPO):
         r_aug = r_outcome + self.alpha_orm * orm_prob  # (B,)
 
         # --- Step 4: GRPO advantage normalization on augmented reward ------
-        advantages = self._compute_grpo_advantages(r_aug)
+        group_ids = None
+        if batch.group_ids is not None:
+            group_ids = torch.as_tensor(batch.group_ids, dtype=torch.long).to(self.device)
+        advantages = self._compute_grpo_advantages(r_aug, group_ids=group_ids)
 
         # --- Step 5: n_policy_updates PPO-clip policy gradient steps -------
         total_surr = 0.0
