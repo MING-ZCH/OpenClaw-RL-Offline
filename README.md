@@ -22,7 +22,7 @@ Documentation:
 flowchart LR
 	A[Benchmark tasks or gui-rl results] --> B[TrajectoryStore JSONL]
 	B --> C[ReplayBuffer and TransitionBatch]
-	C --> D[IQL / CQL / AWAC / GRPO / ... 28 algorithms]
+	C --> D[IQL / CQL / AWAC / GRPO / ... 30 algorithms]
 	D --> E[Weights, diagnostics, replay metrics]
 	B --> F[openclaw-offline replay path]
 	E --> F
@@ -66,6 +66,8 @@ flowchart LR
 | `REBEL` | Real lightweight baseline | Critic-free pairwise reward regression (Gao et al. NeurIPS 2024, arXiv 2404.16767); no value function; lightest-weight RL algorithm in the library. |
 | `DigiRL` | Real lightweight baseline | Doubly-robust offline RL for device-control agents (Bai et al. arXiv 2406.11896, 2024); BCE value functions; DR advantage; hard-filter AWR actor. |
 | `DigiQ` | Real lightweight baseline | Three-stage offline RL for device-control agents (Bai et al. ICLR 2025, arXiv 2502.15760); Stage I BCE representation fine-tuning, Stage II TD(0) Q/V learning with target networks, Stage III Best-of-N policy extraction. |
+| `Agent Q` | Real lightweight baseline | MCTS-guided off-policy DPO for autonomous web agents (Putta et al. 2024, arXiv 2408.07199); combines MCTS empirical returns with learned critic via Q = α·Q_mcts + (1-α)·Q_critic; node-level preference pairs with threshold filtering; off-policy DPO using stored behavior log-probs. |
+| `ILQL` | Real lightweight baseline | Implicit Language Q-Learning for NLG (Snell et al. ICLR 2023, arXiv 2206.11871); extends IQL with CQL conservative penalty, advantage-weighted behavioral cloning (AWAC-style policy extraction), and decoding-time value guidance. |
 | `IPO` | Real lightweight baseline | Identity preference optimization (Azar et al., AISTATS 2024, arXiv 2310.12036); squared-error loss bypassing BT model; same pairing mechanism as DPO. |
 | `CPO` | Real lightweight baseline | Contrastive preference optimization (Xu et al., ICML 2024, arXiv 2401.08417); DPO + behavior cloning regularization on winners. |
 | `SimPO` | Real lightweight baseline | Simple preference optimization (Meng et al., NeurIPS 2024, arXiv 2405.14734); reference-free — no reference model needed; 50% less memory. |
@@ -84,7 +86,7 @@ This repository does not claim to replace the upstream full training runtime. It
 | Goal | Start here | Why |
 |---|---|---|
 | Validate data collection on CPU | `offline-rl/scripts/collect_from_benchmark.py` | Fastest path to confirm adapters, task configs, and storage schema. |
-| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, KTO, REBEL, DigiRL, DigiQ, IPO, CPO, SimPO, DMPO, ETO, or VEM on replay data without entering the full slime stack. |
+| Compare lightweight offline algorithms | `offline-rl/scripts/train_offline.py` | Runs IQL, CQL, AWAC, GRPO, TD3+BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO, Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, KTO, REBEL, DigiRL, DigiQ, Agent Q, ILQL, IPO, CPO, SimPO, DMPO, ETO, or VEM on replay data without entering the full slime stack. |
 | Benchmark multiple algorithms | `offline-rl/scripts/evaluate_algorithms.py` | Trains all specified algorithms and outputs a comparison table (final loss, trend, Q stats, time) with optional CSV/Markdown export. |
 | Produce critic-derived weights | `openclaw-offline/compute_weights.py` | Generates weight files for advantage-weighted fine-tuning. |
 | Launch full offline LLM training | `openclaw-offline/run_qwen35_4b_*_offline_rl.{sh,ps1}` | Reuses the original slime training path with offline replay replacing live rollouts. |

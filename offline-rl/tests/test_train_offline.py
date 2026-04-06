@@ -128,6 +128,19 @@ def _make_args(algo: str) -> argparse.Namespace:
         # VEM
         vem_beta=1.0,
         vem_alpha_awr=1.0,
+        # Agent Q
+        agentq_alpha=0.5,
+        agentq_beta=0.1,
+        agentq_c_exp=1.414,
+        agentq_k_actions=4,
+        agentq_q_threshold=0.1,
+        # ILQL
+        ilql_tau=0.7,
+        ilql_beta=3.0,
+        ilql_cql_alpha=1.0,
+        ilql_cql_temp=1.0,
+        ilql_awac_weight=1.0,
+        ilql_exp_weights=True,
     )
 
 
@@ -848,3 +861,74 @@ def test_build_vem_trains_value_model_and_policy(tmp_dir):
     q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
     assert q_vals.shape == (2,)
     assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+# ================== Agent Q tests =========================================
+
+def test_build_agentq_trains_mcts_guided_dpo(tmp_dir):
+    """Agent Q builds, trains MCTS-guided off-policy DPO, returns combined Q."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("agentq")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # Agent Q specific extra keys
+    assert "critic_loss" in metrics[0].extra
+    assert "dpo_loss" in metrics[0].extra
+    assert "n_pairs" in metrics[0].extra
+    # Q-values from critic
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+def test_agentq_node_level_pairs_threshold_filtering(tmp_dir):
+    """Agent Q filters preference pairs by q_threshold."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("agentq")
+    # Set high threshold to test filtering
+    args.agentq_q_threshold = 100.0
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    metrics = algo.train(num_steps=5, batch_size=8, log_interval=20)
+    assert len(metrics) == 5
+    # With very high threshold, most pairs should be filtered → n_pairs ≈ 0
+    assert all(m.extra["n_pairs"] == 0 for m in metrics)
+
+
+# ================== ILQL tests ============================================
+
+def test_build_ilql_trains_with_cql_and_awac(tmp_dir):
+    """ILQL builds, trains CQL + AWR + V expectile, returns Q-values."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("ilql")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    assert str(algo.device) == "cpu"
+    metrics = algo.train(num_steps=10, batch_size=8, log_interval=20)
+    assert len(metrics) == 10
+    assert all(not math.isnan(m.loss) for m in metrics)
+    # ILQL-specific extra keys
+    assert "v_loss" in metrics[0].extra
+    assert "q_bellman_loss" in metrics[0].extra
+    assert "cql_loss" in metrics[0].extra
+    assert "awac_loss" in metrics[0].extra
+    # Q-values
+    q_vals = algo.get_action_values(["obs A", "obs B"], ["act A", "act B"])
+    assert q_vals.shape == (2,)
+    assert all(math.isfinite(v) for v in q_vals.tolist())
+
+
+def test_ilql_advantages_q_minus_v(tmp_dir):
+    """ILQL get_advantages returns Q - V (IQL-style advantages)."""
+    import math
+    buf = _create_buffer(tmp_dir, n_trajs=12)
+    args = _make_args("ilql")
+    algo = train_script._build_algorithm(args, buf, device="cpu")
+    algo.train(num_steps=5, batch_size=8, log_interval=20)
+    advs = algo.get_advantages(["obs A", "obs B"], ["act A", "act B"])
+    assert advs.shape == (2,)
+    assert all(math.isfinite(v) for v in advs.tolist())

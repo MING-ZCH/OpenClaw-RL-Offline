@@ -83,7 +83,7 @@ The PowerShell entry points prefer WSL and then fall back to Git Bash. They are 
 |---|---|
 | `offline_rollout.py` | Replays trajectory data into slime rollout output |
 | `offline_loss.py` | Optional advantage-weighted loss for offline policy extraction |
-| `compute_weights.py` | Trains small offline critics (any of 28 algorithms) and exports advantage weights |
+| `compute_weights.py` | Trains small offline critics (any of 30 algorithms) and exports advantage weights |
 | `run_qwen35_4b_offline_rl.{sh,ps1}` | Generic offline training launcher |
 | `run_qwen35_4b_{osworld,androidworld,webarena,alfworld}_offline_rl.{sh,ps1}` | Thin benchmark-specific wrappers |
 

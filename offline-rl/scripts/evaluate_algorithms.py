@@ -8,7 +8,7 @@ prints a comparison table.
 
 Supported algorithms: iql, cql, awac, grpo, td3bc, edac, dt, crr, rwft, oreo, sorl, arpo,
                      retrospex, webrl, glider, archer, bcq, dpo, ipo, cpo, simpo, dmpo, eto,
-                     kto, rebel, digirl, digiq, vem
+                     kto, rebel, digirl, digiq, agentq, ilql, vem
 
 Usage:
     python scripts/evaluate_algorithms.py --data data/trajs.jsonl --algos iql cql awac crr oreo
@@ -63,6 +63,8 @@ from offline_rl.algorithms.kto import KTO
 from offline_rl.algorithms.rebel import REBEL
 from offline_rl.algorithms.digirl import DigiRL
 from offline_rl.algorithms.digiq import DigiQ
+from offline_rl.algorithms.agent_q import AgentQ
+from offline_rl.algorithms.ilql import ILQL
 from offline_rl.algorithms.vem import VEM
 
 logging.basicConfig(
@@ -71,7 +73,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "vem"]
+ALL_ALGOS = ["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem"]
 
 _ALGO_REFS = {
     "iql": "Kostrikov et al. ICLR 2022",
@@ -101,6 +103,8 @@ _ALGO_REFS = {
     "rebel": "Gao et al. NeurIPS 2024 arXiv 2404.16767",
     "digirl": "Bai et al. 2024 arXiv 2406.11896",
     "digiq": "Bai et al. ICLR 2025 arXiv 2502.15760",
+    "agentq": "Putta et al. 2024 arXiv 2408.07199",
+    "ilql": "Snell et al. ICLR 2023 arXiv 2206.11871",
     "vem": "Song et al. Microsoft 2025 arXiv 2502.18906",
 }
 
@@ -179,6 +183,10 @@ def _build_algo(name: str, buf: ReplayBuffer, args: argparse.Namespace, device: 
         return DigiRL(**common, lam=0.5, adv_threshold=0.1)
     if name == "digiq":
         return DigiQ(**common, best_of_n=16, tau_target=0.005)
+    if name == "agentq":
+        return AgentQ(**common, alpha=0.5, beta=0.1, k_actions=4, q_threshold=0.1)
+    if name == "ilql":
+        return ILQL(**common, tau=0.7, beta=3.0, cql_alpha=1.0, cql_temp=1.0)
     if name == "vem":
         return VEM(**common, beta=1.0, alpha_awr=1.0)
     raise ValueError("Unknown algorithm: %s" % name)

@@ -1,16 +1,17 @@
 """
 Pre-compute advantage weights from offline RL critic for LLM fine-tuning.
 
-This script trains one of 28 offline RL critics on trajectory data, then
+This script trains one of 30 offline RL critics on trajectory data, then
 exports per-(trajectory, step) advantage/value weights as a JSON file for use
 by the custom ``offline_loss.py`` function during slime training.
 
-All 28 algorithms supported:
+All 30 algorithms supported:
     iql     cql     awac    grpo    td3bc   edac
     dt      crr     rwft    oreo    sorl    arpo
     retrospex  webrl  glider
     archer  bcq     dpo     ipo     cpo     simpo
-    dmpo    eto     kto     rebel   digirl  digiq   vem
+    dmpo    eto     kto     rebel   digirl  digiq
+    agentq  ilql    vem
 
 Usage:
     python compute_weights.py --algo iql --data trajectories.jsonl --output weights.json
@@ -34,6 +35,7 @@ Advantage dispatch:
         SimPO                               → scaled log-prob (no ref model)
         DigiRL                             → V_step success probability ∈ [0, 1]
         Digi-Q                             → Q(s,a) value from TD-learned Q-function
+        Agent Q                            → combined Q_mcts + Q_critic value
         VEM                                → VEM-predicted state-action value
 """
 
@@ -56,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Algorithms that have a true get_advantages() method (Q - V)
 # NOTE: AWAC only has get_action_values(), NOT get_advantages()
-_HAS_ADVANTAGES = {"iql", "crr", "edac", "oreo", "archer", "bcq"}
+_HAS_ADVANTAGES = {"iql", "crr", "edac", "oreo", "archer", "bcq", "ilql"}
 
 
 def _build_algo(args, buffer, device):
@@ -197,6 +199,26 @@ def _build_algo(args, buffer, device):
             max_grad_norm=args.digiq_max_grad_norm,
         )
 
+    if args.algo == "agentq":
+        from offline_rl.algorithms.agent_q import AgentQ
+        return AgentQ(
+            **common,
+            alpha=getattr(args, "agentq_alpha", 0.5),
+            beta=getattr(args, "agentq_beta", 0.1),
+            k_actions=getattr(args, "agentq_k_actions", 4),
+            q_threshold=getattr(args, "agentq_q_threshold", 0.1),
+        )
+
+    if args.algo == "ilql":
+        from offline_rl.algorithms.ilql import ILQL
+        return ILQL(
+            **common,
+            tau=getattr(args, "ilql_tau", 0.7),
+            beta=getattr(args, "ilql_beta", 3.0),
+            cql_alpha=getattr(args, "ilql_cql_alpha", 1.0),
+            cql_temp=getattr(args, "ilql_cql_temp", 1.0),
+        )
+
     if args.algo == "ipo":
         from offline_rl.algorithms.ipo import IPO
         return IPO(**common, beta=args.ipo_beta)
@@ -228,7 +250,7 @@ def _get_advantage(algo, algo_name: str, state: str, action: str) -> float:
     """
     Extract a scalar advantage / value estimate for one (state, action) pair.
 
-    Dispatch:
+    Dispatch:agentq", "ilql", "
       - ``get_advantages()`` if the algorithm provides true IQL-style Q-V.
       - ``get_action_values()`` as a Q/ value proxy otherwise.
     """

@@ -4,7 +4,7 @@ Train offline RL algorithms on pre-collected trajectories.
 
 Supported algorithms: IQL, CQL, AWAC, GRPO, TD3BC, EDAC, DT, CRR, RW-FT, OREO, SORL, ARPO,
                      Retrospex, WebRL, GLIDER, ArCHer, BCQ, DPO, IPO, CPO, SimPO, DMPO, ETO,
-                     KTO, REBEL, DigiRL, Digi-Q, VEM
+                     KTO, REBEL, DigiRL, Digi-Q, Agent Q, ILQL, VEM
 
 Usage:
     python scripts/train_offline.py --data data/trajectories.jsonl --algo iql --steps 500
@@ -61,6 +61,8 @@ from offline_rl.algorithms.kto import KTO
 from offline_rl.algorithms.rebel import REBEL
 from offline_rl.algorithms.digirl import DigiRL
 from offline_rl.algorithms.digiq import DigiQ
+from offline_rl.algorithms.agent_q import AgentQ
+from offline_rl.algorithms.ilql import ILQL
 from offline_rl.algorithms.vem import VEM
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -95,6 +97,8 @@ ALGO_MAP = {
     "rebel": REBEL,
     "digirl": DigiRL,
     "digiq": DigiQ,
+    "agentq": AgentQ,
+    "ilql": ILQL,
     "vem": VEM,
 }
 
@@ -428,6 +432,37 @@ def _build_algorithm(args, replay_buffer: ReplayBuffer, device: str):
             tau_target=args.digiq_tau_target,
             max_grad_norm=args.digiq_max_grad_norm,
         )
+    if args.algo == "agentq":
+        return AgentQ(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            alpha=args.agentq_alpha,
+            beta=args.agentq_beta,
+            c_exp=args.agentq_c_exp,
+            k_actions=args.agentq_k_actions,
+            q_threshold=args.agentq_q_threshold,
+        )
+    if args.algo == "ilql":
+        return ILQL(
+            replay_buffer=replay_buffer,
+            state_dim=args.state_dim,
+            action_dim=args.action_dim,
+            hidden_dim=args.hidden_dim,
+            lr=args.lr,
+            gamma=args.gamma,
+            device=device,
+            tau=args.ilql_tau,
+            beta=args.ilql_beta,
+            cql_alpha=args.ilql_cql_alpha,
+            cql_temp=args.ilql_cql_temp,
+            awac_weight=args.ilql_awac_weight,
+            exp_weights=args.ilql_exp_weights,
+        )
     if args.algo == "ipo":
         return IPO(
             replay_buffer=replay_buffer,
@@ -562,7 +597,7 @@ def main():
     parser = argparse.ArgumentParser(description="Offline RL training")
     parser.add_argument("--data", type=str, required=True, help="Path to trajectory JSONL")
     parser.add_argument("--algo", type=str,
-                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "vem"],
+                        choices=["iql", "cql", "awac", "grpo", "td3bc", "edac", "dt", "crr", "rwft", "oreo", "sorl", "arpo", "retrospex", "webrl", "glider", "archer", "bcq", "dpo", "ipo", "cpo", "simpo", "dmpo", "eto", "kto", "rebel", "digirl", "digiq", "agentq", "ilql", "vem"],
                         default="iql")
     parser.add_argument("--device", type=str, default="cuda", help="Training device: cuda | cuda:N | auto | cpu")
     parser.add_argument("--steps", type=int, default=500, help="Training steps")
@@ -676,6 +711,30 @@ def main():
                         help="Digi-Q soft update rate for target Q/V networks (default 0.005)")
     parser.add_argument("--digiq-max-grad-norm", type=float, default=1.0,
                         help="Digi-Q gradient clipping max norm (default 1.0)")
+    # Agent Q specific
+    parser.add_argument("--agentq-alpha", type=float, default=0.5,
+                        help="Agent Q MCTS/critic Q interpolation weight (default 0.5)")
+    parser.add_argument("--agentq-beta", type=float, default=0.1,
+                        help="Agent Q DPO temperature beta (default 0.1)")
+    parser.add_argument("--agentq-c-exp", type=float, default=1.414,
+                        help="Agent Q UCB1 exploration constant (default 1.414)")
+    parser.add_argument("--agentq-k-actions", type=int, default=4,
+                        help="Agent Q candidate actions per state for MCTS simulation (default 4)")
+    parser.add_argument("--agentq-q-threshold", type=float, default=0.1,
+                        help="Agent Q minimum |Q_w - Q_l| to form preference pairs (default 0.1)")
+    # ILQL specific
+    parser.add_argument("--ilql-tau", type=float, default=0.7,
+                        help="ILQL expectile parameter (default 0.7)")
+    parser.add_argument("--ilql-beta", type=float, default=3.0,
+                        help="ILQL advantage-weighted BC temperature (default 3.0)")
+    parser.add_argument("--ilql-cql-alpha", type=float, default=1.0,
+                        help="ILQL CQL conservative penalty weight (default 1.0)")
+    parser.add_argument("--ilql-cql-temp", type=float, default=1.0,
+                        help="ILQL CQL log-sum-exp temperature (default 1.0)")
+    parser.add_argument("--ilql-awac-weight", type=float, default=1.0,
+                        help="ILQL advantage-weighted BC loss weight (default 1.0)")
+    parser.add_argument("--ilql-exp-weights", action="store_true", default=True,
+                        help="ILQL use exp(beta*A) weighting (default True)")
     # IPO specific
     parser.add_argument("--ipo-beta", type=float, default=0.1,
                         help="IPO temperature beta (target margin = 1/(2*beta), default 0.1)")

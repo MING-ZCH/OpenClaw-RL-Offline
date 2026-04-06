@@ -34,6 +34,8 @@ from .bcq import BCQ, BehaviorCloningNetwork
 from .rebel import REBEL
 from .digirl import DigiRL, StepValueNet, InstructValueNet
 from .digiq import DigiQ, QFunctionNet, VFunctionNet, RepresentationHead
+from .agent_q import AgentQ, CriticNetwork
+from .ilql import ILQL
 from .vem import VEM, ValueEnvironmentModel
 
 __all__ = [
@@ -82,6 +84,9 @@ __all__ = [
     "QFunctionNet",
     "VFunctionNet",
     "RepresentationHead",
+    "AgentQ",
+    "CriticNetwork",
+    "ILQL",
     "VEM",
     "ValueEnvironmentModel",
 ]
