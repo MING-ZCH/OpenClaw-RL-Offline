@@ -35,14 +35,14 @@ python compute_weights.py \
   --beta 3.0
 ```
 
-Supported critic algorithms: all 27 offline RL algorithms from the [offline-rl](../offline-rl/README.md) package.
+Supported critic algorithms: all 32 offline RL algorithms from the [offline-rl](../offline-rl/README.md) package.
 
 Key algorithm categories:
-- **True advantage (Q−V)**: `iql`, `crr`, `edac`, `oreo`, `archer`, `bcq` — use `get_advantages()` for IQL-style advantages.
-- **Q/value proxy**: `cql`, `td3bc`, `grpo`, `awac`, `sorl`, `arpo`, `dt`, `rwft`, `retrospex`, `glider`, `kto`, `rebel` — use `get_action_values()` as proxy.
+- **True advantage (Q−V)**: `iql`, `crr`, `edac`, `oreo`, `archer`, `bcq`, `ilql` — use `get_advantages()` for IQL-style advantages.
+- **Q/value proxy**: `cql`, `td3bc`, `grpo`, `awac`, `sorl`, `arpo`, `dt`, `rwft`, `retrospex`, `glider`, `kto`, `rebel`, `digiq`, `agent_q` — use `get_action_values()` as proxy.
 - **Success probability**: `webrl` (ORM P(success) ∈ [0,1]), `digirl` (V_step success probability ∈ [0,1]).
-- **Log-prob preference proxy**: `dpo`, `ipo`, `cpo`, `dmpo`, `eto` — use `get_action_values()` returning log-probability ratio as proxy.
-- **Reference-free preference proxy**: `simpo` — use `get_action_values()` returning β-scaled log-prob (no reference model).
+- **Log-prob preference proxy**: `dpo`, `ipo`, `cpo`, `dmpo`, `eto`, `rrhf` — use `get_action_values()` returning log-probability ratio as proxy.
+- **Reference-free preference proxy**: `simpo`, `orpo` — use `get_action_values()` returning β-scaled log-prob (no reference model).
 - **Learned value model**: `vem` — use `get_action_values()` returning VEM-predicted value.
 
 If `OFFLINE_WEIGHT_PATH` is not provided at launch time, `offline_loss.py` falls back to reward/outcome-based proxy weights. That path is useful for smoke tests, but critic-derived weights are the recommended route when you want a closer offline-RL signal.

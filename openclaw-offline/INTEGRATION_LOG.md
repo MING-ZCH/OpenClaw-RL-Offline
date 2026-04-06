@@ -312,3 +312,63 @@ from preference optimization and agent RL literature.
 
 ### Commit
 `d211087` — feat: add 6 benchmark-driven offline RL algorithms (IPO, CPO, SimPO, DMPO, ETO, VEM)
+
+## Bridge Extension (v6) — DigiQ (27 → 28)
+
+### Trigger
+Literature search for device-control agent algorithms from ICLR 2025.
+
+### New Algorithm
+
+| Algorithm | Paper | Venue | Key Feature |
+|-----------|-------|-------|-------------|
+| DigiQ | arXiv 2502.15760 | ICLR 2025 | Three-stage offline RL: BCE representation → TD(0) Q/V → Best-of-N policy extraction |
+
+### Commit
+`aade933` — feat: add Digi-Q algorithm (Bai et al. ICLR 2025, arXiv 2502.15760)
+
+## Bridge Extension (v7) — Agent Q + ILQL (28 → 30)
+
+### Trigger
+Literature search for MCTS-guided and implicit language Q-learning methods.
+
+### New Algorithms
+
+| Algorithm | Paper | Venue | Key Feature |
+|-----------|-------|-------|-------------|
+| Agent Q | arXiv 2408.07199 | 2024 | MCTS-guided off-policy DPO for web agents; combined Q = α·Q_mcts + (1-α)·Q_critic with UCB1 |
+| ILQL | arXiv 2206.11871 | ICLR 2023 | Implicit language Q-learning; twin Q + CQL penalty + AWAC policy extraction; provides `get_advantages()` |
+
+### Commit
+`abdb628` — feat: add Agent Q and ILQL algorithms (30 algorithms total)
+
+## Bridge Extension (v8) — ORPO + RRHF (30 → 32)
+
+### Trigger
+Literature search for monolithic alignment and ranking-based preference methods.
+
+### New Algorithms
+
+| Algorithm | Paper | Venue | Key Feature |
+|-----------|-------|-------|-------------|
+| ORPO | arXiv 2403.07691 | 2024 | Odds ratio preference optimization; L_SFT + λ·L_OR; reference-free, 50% less memory |
+| RRHF | arXiv 2304.05302 | NeurIPS 2023 | Rank Responses to Align Human Feedback; hinge ranking loss + SFT anchor on best response |
+
+### compute_weights.py Updates
+
+**Previous**: 30 algorithms
+**Now**: 32 algorithms
+
+1. **`_build_algo()`**: Added `orpo` and `rrhf` branches.
+2. **Advantage dispatch**:
+   - ORPO → `get_action_values()` returning reference-free preference proxy (like SimPO)
+   - RRHF → `get_action_values()` returning log-probability scoring proxy
+3. **`_HAS_ADVANTAGES`**: Unchanged; ORPO and RRHF both use `get_action_values()`.
+
+### Test Results
+- **offline-rl**: 200/200 passed
+- **openclaw-offline**: 29/29 passed
+- **Total**: 229/229
+
+### Commit
+`cc0812d` — feat: add ORPO and RRHF algorithms (30->32)
